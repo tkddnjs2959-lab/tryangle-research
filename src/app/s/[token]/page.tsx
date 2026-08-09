@@ -91,20 +91,24 @@ export default async function Page({ params }: { params: Promise<{ token: string
       </section>
 
       <section className={styles.block}>
-        <h2 className={styles.blockTitle}>1주차 분석 내용</h2>
-        {p.week1Open ? (
+        <h2 className={styles.blockTitle}>공개된 주차</h2>
+        {p.openWeeks.length > 0 ? (
           <>
-            <p className={styles.weekOpen}>
-              관리자가 1주차 분석 내용을 공개했습니다.
-            </p>
+            <ul className={styles.weekList}>
+              {p.openWeeks.map((w) => (
+                <li key={w.week} className={styles.weekItem}>
+                  <span className={styles.weekNo}>{w.week}주차</span>
+                  <span className={styles.weekName}>{w.title ?? '진행 예정'}</span>
+                </li>
+              ))}
+            </ul>
             <p className={styles.blockHint}>
-              현재는 카카오톡 연동 전 단계라 이 진행 현황 링크에서 공개 여부를 확인합니다.
-              세부 결과물은 담당자가 안내하는 방식으로 전달됩니다.
+              세부 결과물은 담당자가 검수한 뒤 직접 전달드립니다.
             </p>
           </>
         ) : (
           <p className={styles.blockHint}>
-            아직 공개 전입니다. 1주차 분석 내용은 담당자가 검수 후 공개하면 이곳에서 확인할 수 있습니다.
+            아직 공개된 주차가 없습니다. 담당자가 주차를 공개하면 이곳에 표시됩니다.
           </p>
         )}
       </section>

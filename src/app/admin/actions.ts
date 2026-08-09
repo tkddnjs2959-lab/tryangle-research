@@ -9,7 +9,9 @@ import {
   createCoachingStudent,
   deleteInquiry,
   deleteResponse,
-  setActorWeek1Open,
+  setActorWeekOverride,
+  setCohortWeekOpen,
+  setCohortWeekTitle,
   setInquiryStatus,
   setSurveyLock,
   updateCoachingStudentNote,
@@ -17,6 +19,7 @@ import {
 } from '@/lib/admin-data';
 import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
+import { WEEK_COUNT } from '@/lib/weeks';
 
 async function requireAdmin() {
   if (!(await isLoggedIn())) redirect('/admin/login');
@@ -72,11 +75,53 @@ export async function toggleLock(formData: FormData) {
   revalidatePath(`/admin/${actorId}`);
 }
 
-export async function toggleWeek1Open(formData: FormData) {
+// ---------------------------------------------------------------------
+// 기수별 1~12주차 공개
+// ---------------------------------------------------------------------
+
+function parseWeek(raw: FormDataEntryValue | null): number | null {
+  const week = Number(String(raw ?? ''));
+  return Number.isInteger(week) && week >= 1 && week <= WEEK_COUNT ? week : null;
+}
+
+/** 기수 전체 공개/비공개 */
+export async function toggleCohortWeek(formData: FormData) {
+  await requireAdmin();
+  const cohort = String(formData.get('cohort') ?? '').trim();
+  const week = parseWeek(formData.get('week'));
+  const open = String(formData.get('open') ?? '') === 'true';
+  if (!cohort || week === null) return;
+
+  await setCohortWeekOpen(cohort, week, open);
+  revalidatePath('/admin');
+  revalidatePath(`/admin/cohort/${encodeURIComponent(cohort)}`);
+}
+
+export async function saveCohortWeekTitle(formData: FormData) {
+  await requireAdmin();
+  const cohort = String(formData.get('cohort') ?? '').trim();
+  const week = parseWeek(formData.get('week'));
+  const title = String(formData.get('title') ?? '');
+  if (!cohort || week === null) return;
+
+  await setCohortWeekTitle(cohort, week, title);
+  revalidatePath(`/admin/cohort/${encodeURIComponent(cohort)}`);
+}
+
+/**
+ * 배우별 예외.
+ * mode 가 'follow' 면 예외를 지워서 기수 설정을 다시 따르게 한다.
+ */
+export async function setActorWeek(formData: FormData) {
   await requireAdmin();
   const actorId = String(formData.get('actorId') ?? '');
-  const open = String(formData.get('open') ?? '') === 'true';
-  if (actorId) await setActorWeek1Open(actorId, open);
+  const week = parseWeek(formData.get('week'));
+  const mode = String(formData.get('mode') ?? '');
+  if (!actorId || week === null) return;
+
+  const override = mode === 'open' ? true : mode === 'close' ? false : null;
+  await setActorWeekOverride(actorId, week, override);
+  revalidatePath('/admin');
   revalidatePath(`/admin/${actorId}`);
 }
 

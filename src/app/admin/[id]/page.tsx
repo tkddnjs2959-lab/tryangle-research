@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { aggregate, getActor, getSelfPicks, listResponses } from '@/lib/admin-data';
+import { aggregate, getActor, getSelfPicks, listActorWeeks, listResponses } from '@/lib/admin-data';
 import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
-import { removeResponse, toggleLock, toggleWeek1Open } from '../actions';
+import { SOURCE_LABEL, WEEK_COUNT, weekLabel } from '@/lib/weeks';
+import { removeResponse, setActorWeek, toggleLock } from '../actions';
 import LinkBox from './LinkBox';
 import Review from './Review';
 import styles from '../admin.module.css';
@@ -18,12 +19,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const actor = await getActor(id);
   if (!actor) notFound();
 
-  const [imageAgg, personalityAgg, self, imageResp, personalityResp] = await Promise.all([
+  const [imageAgg, personalityAgg, self, imageResp, personalityResp, weeks] = await Promise.all([
     aggregate(id, 'image'),
     aggregate(id, 'personality'),
     getSelfPicks(id),
     listResponses(id, 'image'),
     listResponses(id, 'personality'),
+    listActorWeeks(id, actor.cohort),
   ]);
 
   const responses = { image: imageResp, personality: personalityResp };
@@ -99,23 +101,65 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <section className={styles.block}>
         <div className={styles.weekHead}>
           <div>
-            <h2 className={styles.blockTitle}>1주차 분석 내용 공개</h2>
+            <h2 className={styles.blockTitle}>주차 공개</h2>
             <p className={styles.blockHint}>
-              지금은 카카오톡 연동 전 단계입니다. 공개로 바꾸면 배우가 기존 진행 현황 링크에서
-              1주차 분석 내용 확인 섹션을 볼 수 있습니다.
+              {actor.cohort ? (
+                <>
+                  기본은 <strong>{actor.cohort}</strong> 기수 설정을 따릅니다. 기수 전체를 여는 것은{' '}
+                  <Link href={`/admin/cohort/${encodeURIComponent(actor.cohort)}`}>
+                    {actor.cohort} 주차 관리
+                  </Link>
+                  에서 하고, 여기서는 이 배우만 다르게 할 때 예외를 겁니다.
+                </>
+              ) : (
+                <>
+                  이 배우는 기수가 지정되지 않아 기수 단위 공개가 적용되지 않습니다.
+                  아래에서 배우 개별로만 열 수 있습니다.
+                </>
+              )}
             </p>
           </div>
-          <form action={toggleWeek1Open}>
-            <input type="hidden" name="actorId" value={actor.id} />
-            <input type="hidden" name="open" value={String(!actor.week1Open)} />
-            <button className={`${styles.btn} ${actor.week1Open ? styles.ghost : ''}`} type="submit">
-              {actor.week1Open ? '배우 화면 비공개로 변경' : '배우에게 1주차 공개'}
-            </button>
-          </form>
+          <span className={actor.openWeeks.length > 0 ? styles.openTag : styles.closedTag}>
+            {actor.openWeeks.length}/{WEEK_COUNT}주차 공개
+          </span>
         </div>
-        <div className={actor.week1Open ? styles.openTag : styles.closedTag}>
-          현재 상태: {actor.week1Open ? '배우에게 공개 중' : '관리자만 확인 가능'}
-        </div>
+
+        <ul className={styles.weekList}>
+          {weeks.map((w) => (
+            <li key={w.week} className={`${styles.weekRow} ${w.open ? styles.weekRowOpen : ''}`}>
+              <div>
+                <div className={styles.weekName}>{weekLabel(w.week, w.title)}</div>
+                <div className={styles.weekWhy}>
+                  {SOURCE_LABEL[w.source]}
+                  {w.override !== null && ` · 기수 설정: ${w.cohortOpen ? '공개' : '비공개'}`}
+                </div>
+              </div>
+              <div className={styles.weekBtns}>
+                {w.override !== null && (
+                  <form action={setActorWeek}>
+                    <input type="hidden" name="actorId" value={actor.id} />
+                    <input type="hidden" name="week" value={w.week} />
+                    <input type="hidden" name="mode" value="follow" />
+                    <button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">
+                      기수 설정 따르기
+                    </button>
+                  </form>
+                )}
+                <form action={setActorWeek}>
+                  <input type="hidden" name="actorId" value={actor.id} />
+                  <input type="hidden" name="week" value={w.week} />
+                  <input type="hidden" name="mode" value={w.open ? 'close' : 'open'} />
+                  <button
+                    className={`${styles.btn} ${styles.sm} ${w.open ? styles.ghost : ''}`}
+                    type="submit"
+                  >
+                    {w.open ? '이 배우만 비공개' : '이 배우에게 공개'}
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className={styles.block}>

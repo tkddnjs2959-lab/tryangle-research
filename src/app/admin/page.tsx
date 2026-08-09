@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { countNewInquiries, listActors } from '@/lib/admin-data';
+import { countNewInquiries, listActors, listOpenWeekCountByCohort } from '@/lib/admin-data';
 import { CATEGORY_LABEL } from '@/lib/types';
+import { WEEK_COUNT } from '@/lib/weeks';
 import { logout } from './actions';
 import AddActorForm from './AddActorForm';
 import AdminTabs from './AdminTabs';
@@ -14,7 +15,11 @@ export const metadata = { title: '캐릭터포지셔닝 관리 · 어드민', ro
 export default async function Page() {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
-  const [actors, newInquiries] = await Promise.all([listActors(), countNewInquiries()]);
+  const [actors, newInquiries, openWeeksByCohort] = await Promise.all([
+    listActors(),
+    countNewInquiries(),
+    listOpenWeekCountByCohort(),
+  ]);
   const active = actors.filter((a) => a.status !== 'archived');
 
   const UNASSIGNED = '기수 미지정';
@@ -59,7 +64,21 @@ export default async function Page() {
       ) : (
         cohortOrder.map((cohort) => (
           <section key={cohort} className={styles.cohortGroup}>
-            <h2 className={styles.cohortTitle}>{cohort}</h2>
+            <div className={styles.cohortHead}>
+              <h2 className={styles.cohortTitle}>{cohort}</h2>
+              {cohort === UNASSIGNED ? (
+                <span className={styles.cohortMeta}>
+                  기수를 지정해야 주차를 기수 단위로 열 수 있습니다
+                </span>
+              ) : (
+                <Link
+                  href={`/admin/cohort/${encodeURIComponent(cohort)}`}
+                  className={`${styles.btn} ${styles.ghost} ${styles.sm}`}
+                >
+                  주차 관리 ({openWeeksByCohort.get(cohort) ?? 0}/{WEEK_COUNT} 공개)
+                </Link>
+              )}
+            </div>
             <div className={styles.cards}>
               {groups.get(cohort)!.map((a) => (
                 <Link key={a.id} href={`/admin/${a.id}`} className={styles.card}>
@@ -94,6 +113,16 @@ export default async function Page() {
                         {(a.surveys.find((s) => s.type === 'self')?.n ?? 0) > 0 ? '완료' : '미완료'}
                       </span>
                     </div>
+                  </div>
+                  <div className={styles.weekDots}>
+                    {Array.from({ length: WEEK_COUNT }, (_, i) => i + 1).map((w) => (
+                      <span
+                        key={w}
+                        className={a.openWeeks.includes(w) ? styles.weekDotOn : styles.weekDotOff}
+                      >
+                        {w}
+                      </span>
+                    ))}
                   </div>
                 </Link>
               ))}

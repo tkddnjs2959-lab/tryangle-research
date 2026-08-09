@@ -141,6 +141,78 @@
   .weekHead { display: grid; }
 }
 
+/* ---------- 1~12주차 ---------- */
+.cohortHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cohortMeta { font-size: 12px; color: var(--sub); }
+
+.weekList { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.weekItem {
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+}
+.weekNo { font-size: 13px; font-weight: 800; color: var(--navy); }
+.weekTitleForm { display: flex; gap: 8px; min-width: 0; }
+.weekTitleInput {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.weekState { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 760px) {
+  .weekItem { grid-template-columns: 1fr; gap: 8px; }
+  .weekState { justify-content: space-between; }
+}
+
+/* 배우 카드의 주차 진행 표시 */
+.weekDots { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
+.weekDotOn,
+.weekDotOff {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.weekDotOn { background: var(--navy); color: #fff; }
+.weekDotOff { background: var(--line); color: var(--sub); }
+
+/* 배우 상세의 주차별 공개 제어 */
+.weekRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+}
+.weekRowOpen { border-color: var(--ok); background: #f4fbf6; }
+.weekName { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.weekWhy { font-size: 11.5px; color: var(--sub); margin-top: 2px; }
+.weekBtns { display: flex; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .weekRow { grid-template-columns: 1fr; }
+}
+
 .infoGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

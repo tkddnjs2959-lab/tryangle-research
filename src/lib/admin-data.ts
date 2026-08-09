@@ -1,6 +1,14 @@
 import 'server-only';
 import { db } from './supabase';
 import type { Category, Gender } from './types';
+import {
+  DEFAULT_WEEK_TITLE,
+  WEEKS,
+  resolveWeekOpen,
+  weekSource,
+  type ActorWeek,
+  type CohortWeek,
+} from './weeks';
 
 export type ActorRow = {
   id: string;
@@ -10,7 +18,8 @@ export type ActorRow = {
   cohort: string | null;
   status: string;
   progressToken: string;
-  week1Open: boolean;
+  /** 배우에게 실제로 열려 있는 주차 번호 (기수 공개 + 배우별 예외를 합친 결과) */
+  openWeeks: number[];
   kakaoLinked: boolean;
   actorProfile: { name: string; phone: string; updatedAt: string } | null;
   createdAt: string;
@@ -18,7 +27,6 @@ export type ActorRow = {
 };
 
 const ORDER: Category[] = ['image', 'personality', 'self'];
-const WEEK1_OPEN_MARK = '[[week1_open]]';
 const KAKAO_ID_RE = /^\[\[kakao_user_id:([^\]]+)\]\]$/m;
 const PROFILE_RE = /^\[\[actor_profile:(.+)\]\]$/m;
 
@@ -47,9 +55,25 @@ export async function listActors(): Promise<ActorRow[]> {
 
   if (!actors?.length) return [];
 
-  const { data: progress } = await supabase
-    .from('survey_progress')
-    .select('actor_id, type, token, n, min_n, met, is_open');
+  const [{ data: progress }, { data: cohortWeeks }, { data: overrides }] = await Promise.all([
+    supabase.from('survey_progress').select('actor_id, type, token, n, min_n, met, is_open'),
+    supabase.from('cohort_weeks').select('cohort, week').eq('is_open', true),
+    supabase.from('actor_week_overrides').select('actor_id, week, is_open'),
+  ]);
+
+  // 기수 공개 주차 → 배우별 예외 순으로 덮어써서 배우마다 열린 주차를 구한다.
+  const openByCohort = new Map<string, Set<number>>();
+  for (const r of cohortWeeks ?? []) {
+    const key = r.cohort as string;
+    if (!openByCohort.has(key)) openByCohort.set(key, new Set());
+    openByCohort.get(key)!.add(r.week as number);
+  }
+  const overrideByActor = new Map<string, Map<number, boolean>>();
+  for (const o of overrides ?? []) {
+    const key = o.actor_id as string;
+    if (!overrideByActor.has(key)) overrideByActor.set(key, new Map());
+    overrideByActor.get(key)!.set(o.week as number, o.is_open as boolean);
+  }
 
   return actors.map((a) => ({
     id: a.id,
@@ -59,7 +83,12 @@ export async function listActors(): Promise<ActorRow[]> {
     cohort: a.cohort,
     status: a.status,
     progressToken: a.progress_token,
-    week1Open: String(a.note ?? '').includes(WEEK1_OPEN_MARK),
+    openWeeks: WEEKS.filter((w) =>
+      resolveWeekOpen(
+        Boolean(a.cohort && openByCohort.get(a.cohort)?.has(w)),
+        overrideByActor.get(a.id)?.has(w) ? overrideByActor.get(a.id)!.get(w)! : null
+      )
+    ),
     kakaoLinked: KAKAO_ID_RE.test(String(a.note ?? '')),
     actorProfile: parseActorProfile(a.note),
     createdAt: a.created_at,
@@ -230,24 +259,144 @@ export async function setSurveyLock(actorId: string, type: Category, locked: boo
   if (error) throw new Error(error.message);
 }
 
-export async function setActorWeek1Open(actorId: string, open: boolean) {
+// ---------------------------------------------------------------------
+// 기수별 1~12주차 공개 관리
+//
+// 공개 판정은 두 단계다 — 기수 단위(cohort_weeks)로 열고, 배우별 예외
+// (actor_week_overrides)가 있으면 그쪽이 이긴다. 판정 규칙 자체는 weeks.ts 에 있다.
+// ---------------------------------------------------------------------
+
+/** 한 기수의 1~12주차. 행이 없는 주차는 '제목 없음 · 비공개' 로 채워서 항상 12개를 준다. */
+export async function listCohortWeeks(cohort: string): Promise<CohortWeek[]> {
+  const { data, error } = await db()
+    .from('cohort_weeks')
+    .select('week, title, is_open, opened_at')
+    .eq('cohort', cohort);
+
+  if (error) throw new Error(error.message);
+
+  const byWeek = new Map((data ?? []).map((r) => [r.week as number, r]));
+  return WEEKS.map((week) => {
+    const row = byWeek.get(week);
+    return {
+      week,
+      title: (row?.title as string | null) ?? DEFAULT_WEEK_TITLE[week] ?? null,
+      isOpen: Boolean(row?.is_open),
+      openedAt: (row?.opened_at as string | null) ?? null,
+    };
+  });
+}
+
+/** 어드민 목록에서 기수별 공개 현황을 한 번에 뽑을 때 쓴다. */
+export async function listOpenWeekCountByCohort(): Promise<Map<string, number>> {
+  const { data, error } = await db()
+    .from('cohort_weeks')
+    .select('cohort, week')
+    .eq('is_open', true);
+
+  if (error) throw new Error(error.message);
+
+  const out = new Map<string, number>();
+  for (const r of data ?? []) {
+    const key = r.cohort as string;
+    out.set(key, (out.get(key) ?? 0) + 1);
+  }
+  return out;
+}
+
+export async function setCohortWeekTitle(cohort: string, week: number, title: string) {
+  const clean = title.trim();
+  const { error } = await db()
+    .from('cohort_weeks')
+    .upsert(
+      { cohort, week, title: clean || null, updated_at: new Date().toISOString() },
+      { onConflict: 'cohort,week' }
+    );
+  if (error) throw new Error(error.message);
+}
+
+export async function setCohortWeekOpen(cohort: string, week: number, open: boolean) {
+  const { error } = await db()
+    .from('cohort_weeks')
+    .upsert(
+      {
+        cohort,
+        week,
+        is_open: open,
+        opened_at: open ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'cohort,week' }
+    );
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * 배우 한 명의 1~12주차 상태.
+ * 기수가 없는 배우는 기수 공개가 없으므로 예외로만 열린다.
+ */
+export async function listActorWeeks(
+  actorId: string,
+  cohort: string | null
+): Promise<ActorWeek[]> {
   const supabase = db();
-  const { data: actor, error: readError } = await supabase
-    .from('actors')
-    .select('note')
-    .eq('id', actorId)
-    .maybeSingle();
-  if (readError) throw new Error(readError.message);
 
-  const note = String(actor?.note ?? '');
-  const cleaned = note
-    .split('\n')
-    .filter((line) => line.trim() !== WEEK1_OPEN_MARK)
-    .join('\n')
-    .trim();
-  const nextNote = open ? [cleaned, WEEK1_OPEN_MARK].filter(Boolean).join('\n') : cleaned || null;
+  const [cohortWeeks, overrides] = await Promise.all([
+    cohort ? listCohortWeeks(cohort) : Promise.resolve<CohortWeek[]>([]),
+    supabase
+      .from('actor_week_overrides')
+      .select('week, is_open')
+      .eq('actor_id', actorId)
+      .then(({ data, error }) => {
+        if (error) throw new Error(error.message);
+        return data ?? [];
+      }),
+  ]);
 
-  const { error } = await supabase.from('actors').update({ note: nextNote }).eq('id', actorId);
+  const cohortByWeek = new Map(cohortWeeks.map((w) => [w.week, w]));
+  const overrideByWeek = new Map(
+    overrides.map((o) => [o.week as number, o.is_open as boolean])
+  );
+
+  return WEEKS.map((week) => {
+    const cw = cohortByWeek.get(week);
+    const cohortOpen = cw?.isOpen ?? false;
+    const override = overrideByWeek.has(week) ? overrideByWeek.get(week)! : null;
+    return {
+      week,
+      title: cw?.title ?? DEFAULT_WEEK_TITLE[week] ?? null,
+      cohortOpen,
+      override,
+      open: resolveWeekOpen(cohortOpen, override),
+      source: weekSource(cohortOpen, override),
+    };
+  });
+}
+
+/** override 가 null 이면 행을 지운다 — '기수 설정을 따른다' 로 되돌리는 것 */
+export async function setActorWeekOverride(
+  actorId: string,
+  week: number,
+  override: boolean | null
+) {
+  const supabase = db();
+
+  if (override === null) {
+    const { error } = await supabase
+      .from('actor_week_overrides')
+      .delete()
+      .eq('actor_id', actorId)
+      .eq('week', week);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('actor_week_overrides')
+    .upsert(
+      { actor_id: actorId, week, is_open: override, updated_at: new Date().toISOString() },
+      { onConflict: 'actor_id,week' }
+    );
   if (error) throw new Error(error.message);
 }
 

@@ -1,8 +1,7 @@
 import 'server-only';
 import { db } from './supabase';
 import { TOKEN_RE, type Category, type Gender, type Keyword, type SurveyView } from './types';
-
-const WEEK1_OPEN_MARK = '[[week1_open]]';
+import { DEFAULT_WEEK_TITLE, WEEKS, resolveWeekOpen } from './weeks';
 
 /**
  * 토큰으로 리서치를 조회한다.
@@ -76,7 +75,8 @@ export type SurveyProgress = {
 
 export type ProgressView = {
   actorName: string;
-  week1Open: boolean;
+  /** 배우에게 열린 주차만 담는다. 닫힌 주차는 제목조차 넘기지 않는다. */
+  openWeeks: { week: number; title: string | null }[];
   surveys: SurveyProgress[];
 };
 
@@ -93,16 +93,22 @@ export async function getProgressByToken(token: string): Promise<ProgressView | 
 
   const { data: actor } = await supabase
     .from('actors')
-    .select('id, name, note')
+    .select('id, name, cohort')
     .eq('progress_token', token)
     .maybeSingle();
 
   if (!actor) return null;
 
-  const { data: rows } = await supabase
-    .from('survey_progress')
-    .select('type, token, n, min_n, met, is_open')
-    .eq('actor_id', actor.id);
+  const [{ data: rows }, { data: cohortWeeks }, { data: overrides }] = await Promise.all([
+    supabase
+      .from('survey_progress')
+      .select('type, token, n, min_n, met, is_open')
+      .eq('actor_id', actor.id),
+    actor.cohort
+      ? supabase.from('cohort_weeks').select('week, title, is_open').eq('cohort', actor.cohort)
+      : Promise.resolve({ data: [] as { week: number; title: string | null; is_open: boolean }[] }),
+    supabase.from('actor_week_overrides').select('week, is_open').eq('actor_id', actor.id),
+  ]);
 
   const order: Category[] = ['image', 'personality', 'self'];
   const surveys = (rows ?? [])
@@ -116,11 +122,24 @@ export async function getProgressByToken(token: string): Promise<ProgressView | 
     }))
     .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
 
-  return {
-    actorName: actor.name,
-    week1Open: String(actor.note ?? '').includes(WEEK1_OPEN_MARK),
-    surveys,
-  };
+  const cohortByWeek = new Map(
+    (cohortWeeks ?? []).map((w) => [w.week as number, w])
+  );
+  const overrideByWeek = new Map(
+    (overrides ?? []).map((o) => [o.week as number, o.is_open as boolean])
+  );
+
+  const openWeeks = WEEKS.filter((w) =>
+    resolveWeekOpen(
+      Boolean(cohortByWeek.get(w)?.is_open),
+      overrideByWeek.has(w) ? overrideByWeek.get(w)! : null
+    )
+  ).map((w) => ({
+    week: w,
+    title: (cohortByWeek.get(w)?.title as string | null) ?? DEFAULT_WEEK_TITLE[w] ?? null,
+  }));
+
+  return { actorName: actor.name, openWeeks, surveys };
 }
 
 /** DB 함수(submit_response)가 올리는 코드 → 사람이 읽는 문구 */

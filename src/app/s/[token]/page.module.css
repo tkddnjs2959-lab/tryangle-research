@@ -176,12 +176,27 @@
   line-height: 1.6;
   color: #7a5a1e;
 }
-.weekOpen {
-  font-size: 13.5px;
-  font-weight: 800;
-  color: var(--ok);
-  margin: 12px 0 8px;
+/* 공개된 주차 목록 — 공개 여부와 이름만 보여준다. 결과물 자체는 담당자가 전달한다. */
+.weekList { list-style: none; margin: 12px 0 10px; padding: 0; display: grid; gap: 6px; }
+.weekItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 11px 13px;
 }
+.weekNo {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--ok);
+  border-radius: 20px;
+  padding: 3px 9px;
+}
+.weekName { font-size: 13.5px; font-weight: 700; color: var(--ink); }
 .closedNote {
   font-size: 13px;
   color: var(--sub);

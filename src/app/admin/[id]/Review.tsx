@@ -100,10 +100,11 @@ export default function Review({
 
   return (
     <section className={styles.block}>
-      <h2 className={styles.blockTitle}>1주차 분석 툴</h2>
+      <h2 className={styles.blockTitle}>1주차 · 퍼스널 리서치 툴</h2>
       <p className={styles.blockHint}>
-        1주차에는 퍼스널 리서치 응답을 바탕으로 이미지·퍼스널리티 말풍선과
-        “내가 보는 나, 타인이 보는 나” 보고서를 검수합니다.
+        1주차 프로그램인 퍼스널 리서치 툴입니다. 수집한 응답으로 이미지·퍼스널리티 말풍선과
+        “내가 보는 나, 타인이 보는 나” 보고서를 만들고 검수합니다.
+        검수 결과물은 배우 화면에 자동으로 뜨지 않고, 담당자가 직접 전달합니다.
       </p>
 
       <div className={styles.segs}>
