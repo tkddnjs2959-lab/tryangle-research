@@ -1,0 +1,103 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { isLoggedIn } from '@/lib/admin-auth';
+import { listInquiries, type InquiryStatus } from '@/lib/admin-data';
+import { changeInquiryStatus, removeInquiry } from '../actions';
+import styles from '../admin.module.css';
+
+export const dynamic = 'force-dynamic';
+export const metadata = { title: '상담 문의 · 어드민', robots: { index: false, follow: false } };
+
+const STATUS_LABEL: Record<InquiryStatus, string> = {
+  new: '신규',
+  contacted: '연락함',
+  done: '완료',
+  archived: '보류',
+};
+
+export default async function Page() {
+  if (!(await isLoggedIn())) redirect('/admin/login');
+
+  const inquiries = await listInquiries();
+  const open = inquiries.filter((i) => i.status !== 'archived' && i.status !== 'done');
+  const closed = inquiries.filter((i) => i.status === 'archived' || i.status === 'done');
+
+  return (
+    <main className={styles.page}>
+      <header className={styles.topbar}>
+        <div>
+          <Link href="/admin" className={styles.back}>
+            ← 배우 목록
+          </Link>
+          <h1 className={styles.h1}>상담 문의</h1>
+          <div className={styles.meta}>홈페이지 문의 폼으로 들어온 내용입니다</div>
+        </div>
+      </header>
+
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>
+          진행 중 <em className={styles.countBadge}>{open.length}</em>
+        </h2>
+        {open.length === 0 ? (
+          <p className={styles.empty}>진행 중인 문의가 없습니다.</p>
+        ) : (
+          <ul className={styles.inqList}>
+            {open.map((q) => (
+              <InquiryRow key={q.id} q={q} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {closed.length > 0 && (
+        <section className={styles.block}>
+          <h2 className={styles.blockTitle}>완료 · 보류</h2>
+          <ul className={styles.inqList}>
+            {closed.map((q) => (
+              <InquiryRow key={q.id} q={q} />
+            ))}
+          </ul>
+        </section>
+      )}
+    </main>
+  );
+}
+
+function InquiryRow({
+  q,
+}: {
+  q: Awaited<ReturnType<typeof listInquiries>>[number];
+}) {
+  return (
+    <li className={`${styles.inq} ${styles['inq_' + q.status]}`}>
+      <div className={styles.inqHead}>
+        <strong>{q.name}</strong>
+        <span className={styles.inqContact}>{q.contact}</span>
+        <span className={styles.dim}>{new Date(q.createdAt).toLocaleString('ko-KR')}</span>
+        <span className={styles.statusTag}>{STATUS_LABEL[q.status]}</span>
+      </div>
+      {q.message && <p className={styles.inqMsg}>{q.message}</p>}
+      <div className={styles.inqActions}>
+        <form action={changeInquiryStatus} className={styles.inqForm}>
+          <input type="hidden" name="id" value={q.id} />
+          <select name="status" defaultValue={q.status} className={styles.input}>
+            {Object.entries(STATUS_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">
+            상태 변경
+          </button>
+        </form>
+        <form action={removeInquiry}>
+          <input type="hidden" name="id" value={q.id} />
+          <button className={styles.del} type="submit">
+            삭제
+          </button>
+        </form>
+      </div>
+    </li>
+  );
+}

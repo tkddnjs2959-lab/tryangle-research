@@ -1,0 +1,187 @@
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 28px 18px 60px;
+}
+
+.head { margin-bottom: 26px; }
+.brand {
+  font-size: 10.5px;
+  letter-spacing: 1.2px;
+  color: var(--sub);
+  font-weight: 700;
+}
+.title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 10px 0 0;
+  letter-spacing: -0.4px;
+}
+
+.block {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 18px;
+  margin-bottom: 14px;
+}
+.blockTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.blockHint {
+  font-size: 12.5px;
+  color: var(--sub);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+/* ---------- 진행률 ---------- */
+.gauge { margin-top: 18px; }
+.gaugeHead {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.gaugeLabel {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.gaugeLabel em {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--sub);
+  margin-top: 2px;
+}
+.gaugeNum {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--sub);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.gaugeNum.met { color: var(--ok); }
+.gaugeNum b {
+  font-size: 11px;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #eaf5ef;
+  vertical-align: 1px;
+}
+
+.dots { display: flex; flex-wrap: wrap; gap: 5px; }
+.dotOn, .dotOff {
+  width: 22px;
+  height: 7px;
+  border-radius: 4px;
+}
+.dotOn { background: var(--sky-dot); }
+.dotOff { background: #e8edf3; }
+
+/* ---------- 셀프 체크 ---------- */
+.selfRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.selfLabel { flex: 1; font-size: 13.5px; font-weight: 700; }
+.done { font-size: 13px; font-weight: 800; color: var(--ok); }
+.todo { font-size: 13px; font-weight: 700; color: var(--sub); }
+.selfBtn {
+  background: var(--navy);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+/* ---------- 링크 공유 ---------- */
+.share {
+  width: 100%;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 11px;
+  padding: 15px 15px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 9px;
+}
+.share:hover { border-color: var(--sky-dot); background: var(--sky-bg); }
+.shareText { flex: 1; display: grid; gap: 3px; }
+.shareText strong { font-size: 14px; font-weight: 700; color: var(--ink); }
+.shareText em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--sub);
+  line-height: 1.5;
+}
+.shareBtn {
+  flex: none;
+  background: var(--navy);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 9px 15px;
+  border-radius: 8px;
+}
+
+.shareOff { background: #fafbfd; cursor: default; }
+.shareOff:hover { border-color: var(--line); background: #fafbfd; }
+.closedTag {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sub);
+  padding: 9px 15px;
+}
+
+.warn {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  background: #fff8ec;
+  border: 1px solid #f0e0c0;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #7a5a1e;
+}
+.closedNote {
+  font-size: 13px;
+  color: var(--sub);
+  margin: 12px 0 0;
+}
+
+/* ---------- 기타 ---------- */
+.notice {
+  background: var(--card);
+  border-radius: 14px;
+  text-align: center;
+  padding: 56px 16px;
+}
+.noticeTitle { font-size: 20px; font-weight: 800; margin: 0 0 12px; }
+.noticeBody { font-size: 14px; line-height: 1.7; color: var(--sub); margin: 0; }
+
+.foot {
+  margin-top: 26px;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--sub);
+}

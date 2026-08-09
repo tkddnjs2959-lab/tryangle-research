@@ -1,0 +1,39 @@
+:root {
+  --navy: #12224f;
+  --ink: #1a1f2e;
+
+  /* 스카이블루 배경 위에서도 읽히도록 보조 텍스트를 진하게 잡았다.
+     원래 값(#7B8798)은 배경이 흰색일 때 기준이라 파란 배경에서 대비가 부족하다. */
+  --sub: #4f5b69;
+
+  --line: #d3e4f0;
+
+  /* TRY앵글 연한 스카이블루 — 페이지 바탕 */
+  --bg: #bfdff2;
+  /* 본문이 올라가는 흰 면 */
+  --card: #ffffff;
+
+  --sky-bg: #f2f8fd;
+  --sky-line: #dbebf7;
+  --sky-dot: #3d87b8;
+
+  --ok: #1a6b43;
+  --danger: #a83232;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕',
+    system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  min-height: 100dvh;
+}
+
+button { font-family: inherit; }
