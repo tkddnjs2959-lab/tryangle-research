@@ -118,6 +118,33 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </div>
       </section>
 
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>카카오 로그인 · 배우 정보 등록</h2>
+        <p className={styles.blockHint}>
+          배우에게 진행 현황 링크를 전달하면, 배우가 카카오톡으로 로그인한 뒤 본인 정보를 등록할 수 있습니다.
+        </p>
+        <div className={styles.infoGrid}>
+          <div>
+            <strong>카카오 연결</strong>
+            <span className={actor.kakaoLinked ? styles.ok : styles.no}>
+              {actor.kakaoLinked ? '연결됨' : '미연결'}
+            </span>
+          </div>
+          <div>
+            <strong>등록 정보</strong>
+            <span>
+              {actor.actorProfile
+                ? `${actor.actorProfile.name} · ${actor.actorProfile.phone}`
+                : '미등록'}
+            </span>
+          </div>
+          <div>
+            <strong>배우 진행 링크</strong>
+            <code>{`/s/${actor.progressToken}`}</code>
+          </div>
+        </div>
+      </section>
+
       <Review
         actorId={actor.id}
         actorName={actor.name}

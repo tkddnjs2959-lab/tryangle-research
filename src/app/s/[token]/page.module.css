@@ -107,6 +107,20 @@
   text-decoration: none;
 }
 
+.kakaoBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: #fee500;
+  color: #3c1e1e;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 12px 15px;
+  border-radius: 9px;
+  text-decoration: none;
+}
+
 /* ---------- 링크 공유 ---------- */
 .share {
   width: 100%;

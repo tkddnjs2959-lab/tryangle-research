@@ -11,12 +11,31 @@ export type ActorRow = {
   status: string;
   progressToken: string;
   week1Open: boolean;
+  kakaoLinked: boolean;
+  actorProfile: { name: string; phone: string; updatedAt: string } | null;
   createdAt: string;
   surveys: { type: Category; token: string; n: number; minN: number; met: boolean; isOpen: boolean }[];
 };
 
 const ORDER: Category[] = ['image', 'personality', 'self'];
 const WEEK1_OPEN_MARK = '[[week1_open]]';
+const KAKAO_ID_RE = /^\[\[kakao_user_id:([^\]]+)\]\]$/m;
+const PROFILE_RE = /^\[\[actor_profile:(.+)\]\]$/m;
+
+function parseActorProfile(note: string | null): ActorRow['actorProfile'] {
+  const raw = note?.match(PROFILE_RE)?.[1];
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { name?: string; phone?: string; updatedAt?: string };
+    return {
+      name: String(parsed.name ?? ''),
+      phone: String(parsed.phone ?? ''),
+      updatedAt: String(parsed.updatedAt ?? ''),
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function listActors(): Promise<ActorRow[]> {
   const supabase = db();
@@ -41,6 +60,8 @@ export async function listActors(): Promise<ActorRow[]> {
     status: a.status,
     progressToken: a.progress_token,
     week1Open: String(a.note ?? '').includes(WEEK1_OPEN_MARK),
+    kakaoLinked: KAKAO_ID_RE.test(String(a.note ?? '')),
+    actorProfile: parseActorProfile(a.note),
     createdAt: a.created_at,
     surveys: (progress ?? [])
       .filter((p) => p.actor_id === a.id)

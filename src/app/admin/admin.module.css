@@ -141,6 +141,32 @@
   .weekHead { display: grid; }
 }
 
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.infoGrid > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.infoGrid strong { font-size: 12px; color: var(--sub); }
+.infoGrid span,
+.infoGrid code {
+  font-size: 13px;
+  color: var(--ink);
+  word-break: break-all;
+}
+@media (max-width: 760px) {
+  .infoGrid { grid-template-columns: 1fr; }
+}
+
 /* ---------- 코칭 메모 ---------- */
 .noteForm { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; }
 .noteArea {

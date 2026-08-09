@@ -77,6 +77,20 @@ export default async function Page({ params }: { params: Promise<{ token: string
       <ShareBox actorName={p.actorName} surveys={outgoing} />
 
       <section className={styles.block}>
+        <h2 className={styles.blockTitle}>카카오 로그인 · 정보 등록</h2>
+        <p className={styles.blockHint}>
+          카카오 계정으로 로그인하면 배우 정보 등록 화면으로 이동합니다.
+          최초 1회 연결 후에는 같은 카카오 계정으로 다시 접속할 수 있습니다.
+        </p>
+        <a className={styles.kakaoBtn} href={`/api/actor/kakao/start?token=${token}`}>
+          카카오톡으로 로그인하고 정보 등록하기
+        </a>
+        <p className={styles.closedNote}>
+          현재는 카카오톡 자동 메시지 연동 전 단계이며, 이 링크를 통해 로그인합니다.
+        </p>
+      </section>
+
+      <section className={styles.block}>
         <h2 className={styles.blockTitle}>1주차 분석 내용</h2>
         {p.week1Open ? (
           <>
