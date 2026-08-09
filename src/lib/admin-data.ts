@@ -1,4 +1,5 @@
 import 'server-only';
+import { listActorAccounts, type ActorProfile } from './actor-account';
 import { db } from './supabase';
 import type { Category, Gender } from './types';
 import {
@@ -21,29 +22,12 @@ export type ActorRow = {
   /** 배우에게 실제로 열려 있는 주차 번호 (기수 공개 + 배우별 예외를 합친 결과) */
   openWeeks: number[];
   kakaoLinked: boolean;
-  actorProfile: { name: string; phone: string; updatedAt: string } | null;
+  actorProfile: ActorProfile | null;
   createdAt: string;
   surveys: { type: Category; token: string; n: number; minN: number; met: boolean; isOpen: boolean }[];
 };
 
 const ORDER: Category[] = ['image', 'personality', 'self'];
-const KAKAO_ID_RE = /^\[\[kakao_user_id:([^\]]+)\]\]$/m;
-const PROFILE_RE = /^\[\[actor_profile:(.+)\]\]$/m;
-
-function parseActorProfile(note: string | null): ActorRow['actorProfile'] {
-  const raw = note?.match(PROFILE_RE)?.[1];
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as { name?: string; phone?: string; updatedAt?: string };
-    return {
-      name: String(parsed.name ?? ''),
-      phone: String(parsed.phone ?? ''),
-      updatedAt: String(parsed.updatedAt ?? ''),
-    };
-  } catch {
-    return null;
-  }
-}
 
 export async function listActors(): Promise<ActorRow[]> {
   const supabase = db();
@@ -55,11 +39,13 @@ export async function listActors(): Promise<ActorRow[]> {
 
   if (!actors?.length) return [];
 
-  const [{ data: progress }, { data: cohortWeeks }, { data: overrides }] = await Promise.all([
-    supabase.from('survey_progress').select('actor_id, type, token, n, min_n, met, is_open'),
-    supabase.from('cohort_weeks').select('cohort, week').eq('is_open', true),
-    supabase.from('actor_week_overrides').select('actor_id, week, is_open'),
-  ]);
+  const [{ data: progress }, { data: cohortWeeks }, { data: overrides }, accounts] =
+    await Promise.all([
+      supabase.from('survey_progress').select('actor_id, type, token, n, min_n, met, is_open'),
+      supabase.from('cohort_weeks').select('cohort, week').eq('is_open', true),
+      supabase.from('actor_week_overrides').select('actor_id, week, is_open'),
+      listActorAccounts(),
+    ]);
 
   // 기수 공개 주차 → 배우별 예외 순으로 덮어써서 배우마다 열린 주차를 구한다.
   const openByCohort = new Map<string, Set<number>>();
@@ -89,8 +75,8 @@ export async function listActors(): Promise<ActorRow[]> {
         overrideByActor.get(a.id)?.has(w) ? overrideByActor.get(a.id)!.get(w)! : null
       )
     ),
-    kakaoLinked: KAKAO_ID_RE.test(String(a.note ?? '')),
-    actorProfile: parseActorProfile(a.note),
+    kakaoLinked: accounts.get(a.id)?.kakaoLinked ?? false,
+    actorProfile: accounts.get(a.id)?.profile ?? null,
     createdAt: a.created_at,
     surveys: (progress ?? [])
       .filter((p) => p.actor_id === a.id)

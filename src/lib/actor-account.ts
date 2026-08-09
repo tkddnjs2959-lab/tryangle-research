@@ -2,8 +2,14 @@ import 'server-only';
 import { db } from './supabase';
 import type { Gender } from './types';
 
-const KAKAO_ID_RE = /^\[\[kakao_user_id:([^\]]+)\]\]$/m;
-const PROFILE_RE = /^\[\[actor_profile:(.+)\]\]$/m;
+/**
+ * 배우 계정(카카오 연결)과 배우가 직접 등록한 프로필.
+ *
+ * 예전에는 이 값들을 actors.note 안에 [[kakao_user_id:...]] 같은 문자열로
+ * 넣어뒀는데, note 는 대표가 쓰는 메모 칸이라 편집하다 마커가 지워지면
+ * 로그인이 조용히 끊겼다. 지금은 actor_accounts 테이블에 따로 둔다.
+ * actors.note 에 기계가 읽는 값을 다시 넣지 말 것.
+ */
 
 export type ActorProfile = {
   name: string;
@@ -24,92 +30,113 @@ export type ActorAccount = {
   profile: ActorProfile | null;
 };
 
-function parseKakaoUserId(note: string | null): string | null {
-  return note?.match(KAKAO_ID_RE)?.[1] ?? null;
-}
-
-function parseProfile(note: string | null): ActorProfile | null {
-  const raw = note?.match(PROFILE_RE)?.[1];
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<ActorProfile>;
-    return {
-      name: String(parsed.name ?? ''),
-      phone: String(parsed.phone ?? ''),
-      memo: String(parsed.memo ?? ''),
-      kakaoNickname: parsed.kakaoNickname ?? null,
-      updatedAt: String(parsed.updatedAt ?? ''),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function withoutManagedMarkers(note: string | null): string {
-  return String(note ?? '')
-    .split('\n')
-    .filter((line) => !KAKAO_ID_RE.test(line.trim()) && !PROFILE_RE.test(line.trim()))
-    .join('\n')
-    .trim();
-}
-
-function composeNote(note: string | null, kakaoUserId: string | null, profile: ActorProfile | null) {
-  const lines = [withoutManagedMarkers(note)];
-  if (kakaoUserId) lines.push(`[[kakao_user_id:${kakaoUserId}]]`);
-  if (profile) lines.push(`[[actor_profile:${JSON.stringify(profile)}]]`);
-  return lines.filter(Boolean).join('\n') || null;
-}
-
-function toAccount(row: {
+type ActorRowShape = {
   id: string;
   name: string;
   birth_year: number | null;
   gender: Gender;
   cohort: string | null;
   progress_token: string;
-  note: string | null;
-}): ActorAccount {
+};
+
+type AccountRowShape = {
+  actor_id: string;
+  kakao_user_id: string | null;
+  kakao_nickname: string | null;
+  name: string | null;
+  phone: string | null;
+  memo: string | null;
+  updated_at: string;
+};
+
+const ACTOR_COLS = 'id, name, birth_year, gender, cohort, progress_token';
+const ACCOUNT_COLS = 'actor_id, kakao_user_id, kakao_nickname, name, phone, memo, updated_at';
+
+/** 프로필은 배우가 뭐라도 등록했을 때만 만든다 — 카카오만 연결한 상태와 구분한다. */
+function toProfile(row: AccountRowShape | null): ActorProfile | null {
+  if (!row) return null;
+  const hasAny = Boolean(row.name || row.phone || row.memo);
+  if (!hasAny) return null;
   return {
-    id: row.id,
-    name: row.name,
-    birthYear: row.birth_year,
-    gender: row.gender,
-    cohort: row.cohort,
-    progressToken: row.progress_token,
-    kakaoUserId: parseKakaoUserId(row.note),
-    profile: parseProfile(row.note),
+    name: row.name ?? '',
+    phone: row.phone ?? '',
+    memo: row.memo ?? '',
+    kakaoNickname: row.kakao_nickname,
+    updatedAt: row.updated_at,
   };
+}
+
+function toAccount(actor: ActorRowShape, account: AccountRowShape | null): ActorAccount {
+  return {
+    id: actor.id,
+    name: actor.name,
+    birthYear: actor.birth_year,
+    gender: actor.gender,
+    cohort: actor.cohort,
+    progressToken: actor.progress_token,
+    kakaoUserId: account?.kakao_user_id ?? null,
+    profile: toProfile(account),
+  };
+}
+
+async function loadAccount(actorId: string): Promise<AccountRowShape | null> {
+  const { data, error } = await db()
+    .from('actor_accounts')
+    .select(ACCOUNT_COLS)
+    .eq('actor_id', actorId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as AccountRowShape | null) ?? null;
 }
 
 export async function getActorAccountByProgressToken(token: string): Promise<ActorAccount | null> {
   const { data, error } = await db()
     .from('actors')
-    .select('id, name, birth_year, gender, cohort, progress_token, note')
+    .select(ACTOR_COLS)
     .eq('progress_token', token)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? toAccount(data as Parameters<typeof toAccount>[0]) : null;
+  if (!data) return null;
+
+  const actor = data as ActorRowShape;
+  return toAccount(actor, await loadAccount(actor.id));
 }
 
 export async function getActorAccountById(id: string): Promise<ActorAccount | null> {
   const { data, error } = await db()
     .from('actors')
-    .select('id, name, birth_year, gender, cohort, progress_token, note')
+    .select(ACTOR_COLS)
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? toAccount(data as Parameters<typeof toAccount>[0]) : null;
+  if (!data) return null;
+
+  const actor = data as ActorRowShape;
+  return toAccount(actor, await loadAccount(actor.id));
 }
 
-export async function findActorAccountByKakaoUserId(kakaoUserId: string): Promise<ActorAccount | null> {
-  const { data, error } = await db()
-    .from('actors')
-    .select('id, name, birth_year, gender, cohort, progress_token, note')
-    .ilike('note', `%[[kakao_user_id:${kakaoUserId}]]%`)
-    .limit(1);
+/** 카카오 ID 로 배우를 찾는다. 인덱스가 걸린 컬럼이라 정확히 일치로 조회한다. */
+export async function findActorAccountByKakaoUserId(
+  kakaoUserId: string
+): Promise<ActorAccount | null> {
+  const { data: account, error } = await db()
+    .from('actor_accounts')
+    .select(ACCOUNT_COLS)
+    .eq('kakao_user_id', kakaoUserId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
-  const row = data?.[0];
-  return row ? toAccount(row as Parameters<typeof toAccount>[0]) : null;
+  if (!account) return null;
+
+  const row = account as AccountRowShape;
+  const { data: actor, error: actorError } = await db()
+    .from('actors')
+    .select(ACTOR_COLS)
+    .eq('id', row.actor_id)
+    .maybeSingle();
+  if (actorError) throw new Error(actorError.message);
+  if (!actor) return null;
+
+  return toAccount(actor as ActorRowShape, row);
 }
 
 export async function linkActorToKakao(input: {
@@ -117,22 +144,20 @@ export async function linkActorToKakao(input: {
   kakaoUserId: string;
   kakaoNickname?: string | null;
 }) {
-  const account = await getActorAccountById(input.actorId);
-  if (!account) throw new Error('배우를 찾을 수 없습니다.');
+  const existing = await loadAccount(input.actorId);
 
-  const profile = account.profile
-    ? { ...account.profile, kakaoNickname: input.kakaoNickname ?? account.profile.kakaoNickname ?? null }
-    : null;
-
-  const { data: current, error: readError } = await db()
-    .from('actors')
-    .select('note')
-    .eq('id', input.actorId)
-    .single();
-  if (readError) throw new Error(readError.message);
-
-  const nextNote = composeNote(current.note, input.kakaoUserId, profile);
-  const { error } = await db().from('actors').update({ note: nextNote }).eq('id', input.actorId);
+  const { error } = await db()
+    .from('actor_accounts')
+    .upsert(
+      {
+        actor_id: input.actorId,
+        kakao_user_id: input.kakaoUserId,
+        // 카카오가 닉네임을 안 주면 이미 저장된 값을 지우지 않는다.
+        kakao_nickname: input.kakaoNickname ?? existing?.kakao_nickname ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'actor_id' }
+    );
   if (error) throw new Error(error.message);
 }
 
@@ -142,24 +167,38 @@ export async function updateActorProfile(input: {
   phone: string;
   memo: string;
 }) {
-  const account = await getActorAccountById(input.actorId);
-  if (!account) throw new Error('배우를 찾을 수 없습니다.');
+  const existing = await loadAccount(input.actorId);
 
-  const { data: current, error: readError } = await db()
-    .from('actors')
-    .select('note')
-    .eq('id', input.actorId)
-    .single();
-  if (readError) throw new Error(readError.message);
-
-  const profile: ActorProfile = {
-    name: input.name,
-    phone: input.phone,
-    memo: input.memo,
-    kakaoNickname: account.profile?.kakaoNickname ?? null,
-    updatedAt: new Date().toISOString(),
-  };
-  const nextNote = composeNote(current.note, account.kakaoUserId, profile);
-  const { error } = await db().from('actors').update({ note: nextNote }).eq('id', input.actorId);
+  const { error } = await db()
+    .from('actor_accounts')
+    .upsert(
+      {
+        actor_id: input.actorId,
+        kakao_user_id: existing?.kakao_user_id ?? null,
+        kakao_nickname: existing?.kakao_nickname ?? null,
+        name: input.name,
+        phone: input.phone,
+        memo: input.memo,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'actor_id' }
+    );
   if (error) throw new Error(error.message);
+}
+
+/** 어드민 목록용 — 배우별 카카오 연결 여부와 프로필을 한 번에 가져온다. */
+export async function listActorAccounts(): Promise<
+  Map<string, { kakaoLinked: boolean; profile: ActorProfile | null }>
+> {
+  const { data, error } = await db().from('actor_accounts').select(ACCOUNT_COLS);
+  if (error) throw new Error(error.message);
+
+  const out = new Map<string, { kakaoLinked: boolean; profile: ActorProfile | null }>();
+  for (const row of (data ?? []) as AccountRowShape[]) {
+    out.set(row.actor_id, {
+      kakaoLinked: Boolean(row.kakao_user_id),
+      profile: toProfile(row),
+    });
+  }
+  return out;
 }
