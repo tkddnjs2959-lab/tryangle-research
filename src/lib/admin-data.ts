@@ -466,26 +466,120 @@ export type CoachingStudentRow = {
   note: string | null;
   status: string;
   createdAt: string;
+  /** 퍼스널 브랜딩(actors)에서 넘어온 학생이면 그쪽 요약을 함께 담는다. */
+  actor: {
+    id: string;
+    name: string;
+    cohort: string | null;
+    openWeeks: number[];
+    surveys: { type: Category; n: number; minN: number; met: boolean }[];
+  } | null;
 };
 
 export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
   const { data, error } = await db()
     .from('coaching_students')
-    .select('id, name, birth_year, gender, contact, note, status, created_at')
+    .select('id, name, birth_year, gender, contact, note, status, created_at, actor_id')
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    birthYear: r.birth_year,
-    gender: r.gender as Gender,
-    contact: r.contact,
-    note: r.note,
-    status: r.status,
-    createdAt: r.created_at,
-  }));
+  // 연동된 배우가 있을 때만 배우 목록을 끌어온다 (없으면 조회 자체를 건너뛴다).
+  const linkedIds = new Set(
+    (data ?? []).map((r) => r.actor_id as string | null).filter((v): v is string => Boolean(v))
+  );
+  const actors = linkedIds.size > 0 ? await listActors() : [];
+  const actorById = new Map(actors.map((a) => [a.id, a]));
+
+  return (data ?? []).map((r) => {
+    const actor = r.actor_id ? actorById.get(r.actor_id as string) : undefined;
+    return {
+      id: r.id,
+      name: r.name,
+      birthYear: r.birth_year,
+      gender: r.gender as Gender,
+      contact: r.contact,
+      note: r.note,
+      status: r.status,
+      createdAt: r.created_at,
+      actor: actor
+        ? {
+            id: actor.id,
+            name: actor.name,
+            cohort: actor.cohort,
+            openWeeks: actor.openWeeks,
+            surveys: actor.surveys.map((s) => ({
+              type: s.type,
+              n: s.n,
+              minN: s.minN,
+              met: s.met,
+            })),
+          }
+        : null,
+    };
+  });
+}
+
+/** 배우 상세에서 연동 버튼이 눌렸을 때 — 이미 연동돼 있으면 그 학생을 그대로 쓴다. */
+export async function linkActorToCoaching(actorId: string): Promise<string> {
+  const supabase = db();
+
+  const { data: existing, error: findError } = await supabase
+    .from('coaching_students')
+    .select('id, status')
+    .eq('actor_id', actorId)
+    .maybeSingle();
+  if (findError) throw new Error(findError.message);
+
+  // 보관 처리된 학생이 있으면 되살린다 — 같은 배우를 두 번 만들지 않는다.
+  if (existing) {
+    if (existing.status === 'archived') {
+      const { error } = await supabase
+        .from('coaching_students')
+        .update({ status: 'active' })
+        .eq('id', existing.id);
+      if (error) throw new Error(error.message);
+    }
+    return existing.id as string;
+  }
+
+  const actor = await getActor(actorId);
+  if (!actor) throw new Error('배우를 찾을 수 없습니다.');
+
+  const { data, error } = await supabase
+    .from('coaching_students')
+    .insert({
+      name: actor.name,
+      birth_year: actor.birthYear,
+      gender: actor.gender,
+      contact: actor.actorProfile?.phone || null,
+      actor_id: actor.id,
+      note: `퍼스널 브랜딩에서 연동됨${actor.cohort ? ` (${actor.cohort})` : ''}`,
+    })
+    .select('id')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data.id as string;
+}
+
+/** 연동만 끊는다. 코칭 기록은 그대로 남는다. */
+export async function unlinkCoachingStudent(id: string) {
+  const { error } = await db().from('coaching_students').update({ actor_id: null }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/** 이 배우가 이미 코칭으로 넘어갔는지 (배우 상세에서 버튼 상태를 정할 때 쓴다) */
+export async function getCoachingLinkForActor(
+  actorId: string
+): Promise<{ id: string; status: string } | null> {
+  const { data, error } = await db()
+    .from('coaching_students')
+    .select('id, status')
+    .eq('actor_id', actorId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { id: data.id as string, status: data.status as string } : null;
 }
 
 export async function createCoachingStudent(input: {

@@ -9,11 +9,13 @@ import {
   createCoachingStudent,
   deleteInquiry,
   deleteResponse,
+  linkActorToCoaching,
   setActorWeekOverride,
   setCohortWeekOpen,
   setCohortWeekTitle,
   setInquiryStatus,
   setSurveyLock,
+  unlinkCoachingStudent,
   updateCoachingStudentNote,
   type InquiryStatus,
 } from '@/lib/admin-data';
@@ -173,6 +175,28 @@ export async function saveCoachingNote(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   const note = String(formData.get('note') ?? '');
   if (id) await updateCoachingStudentNote(id, note);
+  revalidatePath('/admin/coaching');
+}
+
+/**
+ * 퍼스널 브랜딩 배우를 1:1 코칭으로 넘긴다.
+ * 이미 연동돼 있으면 새로 만들지 않고 그 학생으로 이동한다.
+ */
+export async function sendActorToCoaching(formData: FormData) {
+  await requireAdmin();
+  const actorId = String(formData.get('actorId') ?? '');
+  if (!actorId) return;
+
+  await linkActorToCoaching(actorId);
+  revalidatePath('/admin/coaching');
+  revalidatePath(`/admin/${actorId}`);
+  redirect('/admin/coaching');
+}
+
+export async function unlinkCoaching(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (id) await unlinkCoachingStudent(id);
   revalidatePath('/admin/coaching');
 }
 

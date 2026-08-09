@@ -1,10 +1,17 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { aggregate, getActor, getSelfPicks, listActorWeeks, listResponses } from '@/lib/admin-data';
+import {
+  aggregate,
+  getActor,
+  getCoachingLinkForActor,
+  getSelfPicks,
+  listActorWeeks,
+  listResponses,
+} from '@/lib/admin-data';
 import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
 import { SOURCE_LABEL, WEEK_COUNT, weekLabel } from '@/lib/weeks';
-import { removeResponse, setActorWeek, toggleLock } from '../actions';
+import { removeResponse, sendActorToCoaching, setActorWeek, toggleLock } from '../actions';
 import LinkBox from './LinkBox';
 import Review from './Review';
 import styles from '../admin.module.css';
@@ -19,14 +26,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const actor = await getActor(id);
   if (!actor) notFound();
 
-  const [imageAgg, personalityAgg, self, imageResp, personalityResp, weeks] = await Promise.all([
-    aggregate(id, 'image'),
-    aggregate(id, 'personality'),
-    getSelfPicks(id),
-    listResponses(id, 'image'),
-    listResponses(id, 'personality'),
-    listActorWeeks(id, actor.cohort),
-  ]);
+  const [imageAgg, personalityAgg, self, imageResp, personalityResp, weeks, coachingLink] =
+    await Promise.all([
+      aggregate(id, 'image'),
+      aggregate(id, 'personality'),
+      getSelfPicks(id),
+      listResponses(id, 'image'),
+      listResponses(id, 'personality'),
+      listActorWeeks(id, actor.cohort),
+      getCoachingLinkForActor(id),
+    ]);
 
   const responses = { image: imageResp, personality: personalityResp };
 
@@ -160,6 +169,34 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className={styles.block}>
+        <div className={styles.weekHead}>
+          <div>
+            <h2 className={styles.blockTitle}>1:1 매체연기 코칭 연동</h2>
+            <p className={styles.blockHint}>
+              {coachingLink
+                ? '이 배우는 1:1 코칭 트랙으로 넘어갔습니다. 코칭 탭에서 이 배우의 기수·리서치 진행·공개 주차를 함께 볼 수 있습니다.'
+                : '캐릭터 포지셔닝 클래스를 마치고 1:1 코칭으로 넘어가면 여기서 연동합니다. 코칭 탭에 학생으로 등록되고, 배우 정보와 리서치 진행이 그쪽에서도 보입니다.'}
+            </p>
+          </div>
+          {coachingLink ? (
+            <Link href="/admin/coaching" className={`${styles.btn} ${styles.ghost}`}>
+              코칭 탭에서 보기
+            </Link>
+          ) : (
+            <form action={sendActorToCoaching}>
+              <input type="hidden" name="actorId" value={actor.id} />
+              <button className={styles.btn} type="submit">
+                1:1 코칭으로 연동
+              </button>
+            </form>
+          )}
+        </div>
+        <div className={coachingLink ? styles.openTag : styles.closedTag}>
+          현재 상태: {coachingLink ? '코칭 트랙 연동됨' : '퍼스널 브랜딩 트랙만 진행 중'}
+        </div>
       </section>
 
       <section className={styles.block}>
