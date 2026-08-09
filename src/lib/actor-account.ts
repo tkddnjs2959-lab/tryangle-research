@@ -47,10 +47,16 @@ type AccountRowShape = {
   phone: string | null;
   memo: string | null;
   updated_at: string;
+  kakao_refresh_token: string | null;
+  kakao_refresh_expires_at: string | null;
+  notify_enabled: boolean;
+  notified_weeks: number[] | null;
 };
 
 const ACTOR_COLS = 'id, name, birth_year, gender, cohort, progress_token';
-const ACCOUNT_COLS = 'actor_id, kakao_user_id, kakao_nickname, name, phone, memo, updated_at';
+// supabase-js 는 이 문자열 리터럴에서 반환 타입을 추론한다.
+// 여러 줄로 이어붙이면 타입이 string 이 되면서 추론이 깨지므로 한 줄로 둔다.
+const ACCOUNT_COLS = 'actor_id, kakao_user_id, kakao_nickname, name, phone, memo, updated_at, kakao_refresh_token, kakao_refresh_expires_at, notify_enabled, notified_weeks';
 
 /** 프로필은 배우가 뭐라도 등록했을 때만 만든다 — 카카오만 연결한 상태와 구분한다. */
 function toProfile(row: AccountRowShape | null): ActorProfile | null {
@@ -143,8 +149,16 @@ export async function linkActorToKakao(input: {
   actorId: string;
   kakaoUserId: string;
   kakaoNickname?: string | null;
+  /** talk_message 동의를 받았을 때만 들어온다. 없으면 기존 값을 지우지 않는다. */
+  refreshToken?: string | null;
+  refreshTokenExpiresIn?: number | null;
 }) {
   const existing = await loadAccount(input.actorId);
+
+  const refreshExpiresAt =
+    input.refreshToken && input.refreshTokenExpiresIn
+      ? new Date(Date.now() + input.refreshTokenExpiresIn * 1000).toISOString()
+      : (existing?.kakao_refresh_expires_at ?? null);
 
   const { error } = await db()
     .from('actor_accounts')
@@ -154,6 +168,8 @@ export async function linkActorToKakao(input: {
         kakao_user_id: input.kakaoUserId,
         // 카카오가 닉네임을 안 주면 이미 저장된 값을 지우지 않는다.
         kakao_nickname: input.kakaoNickname ?? existing?.kakao_nickname ?? null,
+        kakao_refresh_token: input.refreshToken ?? existing?.kakao_refresh_token ?? null,
+        kakao_refresh_expires_at: refreshExpiresAt,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'actor_id' }
@@ -188,15 +204,20 @@ export async function updateActorProfile(input: {
 
 /** 어드민 목록용 — 배우별 카카오 연결 여부와 프로필을 한 번에 가져온다. */
 export async function listActorAccounts(): Promise<
-  Map<string, { kakaoLinked: boolean; profile: ActorProfile | null }>
+  Map<string, { kakaoLinked: boolean; notifyReady: boolean; profile: ActorProfile | null }>
 > {
   const { data, error } = await db().from('actor_accounts').select(ACCOUNT_COLS);
   if (error) throw new Error(error.message);
 
-  const out = new Map<string, { kakaoLinked: boolean; profile: ActorProfile | null }>();
+  const out = new Map<
+    string,
+    { kakaoLinked: boolean; notifyReady: boolean; profile: ActorProfile | null }
+  >();
   for (const row of (data ?? []) as AccountRowShape[]) {
     out.set(row.actor_id, {
       kakaoLinked: Boolean(row.kakao_user_id),
+      // 메시지 동의까지 받아야 알림을 보낼 수 있다 — 로그인만으로는 부족하다.
+      notifyReady: Boolean(row.kakao_refresh_token) && row.notify_enabled,
       profile: toProfile(row),
     });
   }

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActorAccountByProgressToken } from '@/lib/actor-account';
-import { kakaoRedirectUri, kakaoRestKey } from '@/lib/kakao-login';
+import { kakaoActorScopes, kakaoRedirectUri, kakaoRestKey } from '@/lib/kakao-login';
 
 const STATE_COOKIE = 'actor_kakao_state';
 
@@ -26,6 +26,10 @@ export async function GET(req: NextRequest) {
   authorize.searchParams.set('client_id', kakaoRestKey());
   authorize.searchParams.set('redirect_uri', kakaoRedirectUri(req.nextUrl.origin));
   authorize.searchParams.set('state', state);
+
+  // 주차 알림용 동의항목. 콘솔에서 켜기 전에는 비워둬야 로그인이 막히지 않는다.
+  const scopes = kakaoActorScopes();
+  if (scopes) authorize.searchParams.set('scope', scopes);
 
   return NextResponse.redirect(authorize);
 }

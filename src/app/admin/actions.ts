@@ -9,7 +9,9 @@ import {
   createCoachingStudent,
   deleteInquiry,
   deleteResponse,
+  getActor,
   linkActorToCoaching,
+  listCohortWeeks,
   setActorWeekOverride,
   setCohortWeekOpen,
   setCohortWeekTitle,
@@ -19,6 +21,7 @@ import {
   updateCoachingStudentNote,
   type InquiryStatus,
 } from '@/lib/admin-data';
+import { listActorIdsInCohort, notifyActorsWeekOpen } from '@/lib/actor-notify';
 import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
@@ -95,6 +98,16 @@ export async function toggleCohortWeek(formData: FormData) {
   if (!cohort || week === null) return;
 
   await setCohortWeekOpen(cohort, week, open);
+
+  // 공개할 때만 알린다. 닫는 것은 알리지 않는다.
+  // 알림 실패는 공개 자체를 되돌리지 않는다 — 공개는 이미 반영된 사실이다.
+  if (open) {
+    const weeks = await listCohortWeeks(cohort);
+    const title = weeks.find((w) => w.week === week)?.title ?? null;
+    const actorIds = await listActorIdsInCohort(cohort);
+    await notifyActorsWeekOpen({ actorIds, week, title });
+  }
+
   revalidatePath('/admin');
   revalidatePath(`/admin/cohort/${encodeURIComponent(cohort)}`);
 }
@@ -123,6 +136,14 @@ export async function setActorWeek(formData: FormData) {
 
   const override = mode === 'open' ? true : mode === 'close' ? false : null;
   await setActorWeekOverride(actorId, week, override);
+
+  if (mode === 'open') {
+    const actor = await getActor(actorId);
+    const weeks = actor?.cohort ? await listCohortWeeks(actor.cohort) : [];
+    const title = weeks.find((w) => w.week === week)?.title ?? null;
+    await notifyActorsWeekOpen({ actorIds: [actorId], week, title });
+  }
+
   revalidatePath('/admin');
   revalidatePath(`/admin/${actorId}`);
 }

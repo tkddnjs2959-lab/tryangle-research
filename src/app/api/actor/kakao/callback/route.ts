@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
   if (!actor) return NextResponse.redirect(new URL('/actor?error=invalid_actor', req.url));
 
   try {
-    const accessToken = await exchangeKakaoCode({ code, origin: req.nextUrl.origin });
-    const kakao = await getKakaoUser(accessToken);
+    const token = await exchangeKakaoCode({ code, origin: req.nextUrl.origin });
+    const kakao = await getKakaoUser(token.accessToken);
     const alreadyLinked = await findActorAccountByKakaoUserId(kakao.id);
 
     if (alreadyLinked && alreadyLinked.id !== actor.id) {
@@ -41,8 +41,11 @@ export async function GET(req: NextRequest) {
       actorId: actor.id,
       kakaoUserId: kakao.id,
       kakaoNickname: kakao.nickname,
+      refreshToken: token.refreshToken,
+      refreshTokenExpiresIn: token.refreshTokenExpiresIn,
     });
     await createActorSession(actor.id, kakao.id);
+
     return NextResponse.redirect(new URL('/actor', req.url));
   } catch (e) {
     const msg = e instanceof Error ? e.message : '카카오 로그인에 실패했습니다.';

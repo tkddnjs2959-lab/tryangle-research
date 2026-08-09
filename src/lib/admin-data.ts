@@ -22,6 +22,8 @@ export type ActorRow = {
   /** 배우에게 실제로 열려 있는 주차 번호 (기수 공개 + 배우별 예외를 합친 결과) */
   openWeeks: number[];
   kakaoLinked: boolean;
+  /** 카카오 메시지 동의까지 받아 주차 공개 알림을 보낼 수 있는 상태 */
+  notifyReady: boolean;
   actorProfile: ActorProfile | null;
   createdAt: string;
   surveys: { type: Category; token: string; n: number; minN: number; met: boolean; isOpen: boolean }[];
@@ -76,6 +78,7 @@ export async function listActors(): Promise<ActorRow[]> {
       )
     ),
     kakaoLinked: accounts.get(a.id)?.kakaoLinked ?? false,
+    notifyReady: accounts.get(a.id)?.notifyReady ?? false,
     actorProfile: accounts.get(a.id)?.profile ?? null,
     createdAt: a.created_at,
     surveys: (progress ?? [])

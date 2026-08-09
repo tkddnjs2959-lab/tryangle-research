@@ -213,6 +213,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             </span>
           </div>
           <div>
+            <strong>주차 공개 알림</strong>
+            <span className={actor.notifyReady ? styles.ok : styles.no}>
+              {actor.notifyReady ? '보낼 수 있음' : '메시지 동의 없음'}
+            </span>
+          </div>
+          <div>
             <strong>등록 정보</strong>
             <span>
               {actor.actorProfile

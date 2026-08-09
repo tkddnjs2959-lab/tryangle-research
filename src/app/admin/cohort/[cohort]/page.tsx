@@ -34,7 +34,8 @@ export default async function Page({ params }: { params: Promise<{ cohort: strin
           </Link>
           <h1 className={styles.h1}>{cohort} 주차 관리</h1>
           <div className={styles.meta}>
-            배우 {members.length}명 · {WEEK_COUNT}주차 중 {openCount}주차 공개
+            배우 {members.length}명 · {WEEK_COUNT}주차 중 {openCount}주차 공개 · 알림 받을 수 있는
+            배우 {members.filter((m) => m.notifyReady).length}명
           </div>
         </div>
       </header>
@@ -42,7 +43,8 @@ export default async function Page({ params }: { params: Promise<{ cohort: strin
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>주차 커리큘럼 · 공개</h2>
         <p className={styles.blockHint}>
-          공개로 바꾸면 이 기수 배우 전원의 진행 현황 화면에 해당 주차가 나타납니다.
+          공개로 바꾸면 이 기수 배우 전원의 진행 현황 화면에 해당 주차가 나타나고,
+          카카오 메시지 동의를 한 배우에게는 카카오톡 알림이 함께 나갑니다.
           제목은 배우 화면에도 그대로 보이므로, 정해지기 전까지는 비워두면 &lsquo;N주차&rsquo;로만 표시됩니다.
           특정 배우만 먼저 열거나 막아야 하면 배우 상세 화면에서 예외를 걸 수 있습니다.
         </p>
