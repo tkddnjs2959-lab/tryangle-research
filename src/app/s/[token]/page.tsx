@@ -76,6 +76,25 @@ export default async function Page({ params }: { params: Promise<{ token: string
 
       <ShareBox actorName={p.actorName} surveys={outgoing} />
 
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>1주차 분석 내용</h2>
+        {p.week1Open ? (
+          <>
+            <p className={styles.weekOpen}>
+              관리자가 1주차 분석 내용을 공개했습니다.
+            </p>
+            <p className={styles.blockHint}>
+              현재는 카카오톡 연동 전 단계라 이 진행 현황 링크에서 공개 여부를 확인합니다.
+              세부 결과물은 담당자가 안내하는 방식으로 전달됩니다.
+            </p>
+          </>
+        ) : (
+          <p className={styles.blockHint}>
+            아직 공개 전입니다. 1주차 분석 내용은 담당자가 검수 후 공개하면 이곳에서 확인할 수 있습니다.
+          </p>
+        )}
+      </section>
+
       <footer className={styles.foot}>
         응답 내용은 이 화면에 표시되지 않습니다.
         <br />

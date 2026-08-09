@@ -9,6 +9,7 @@ import {
   createCoachingStudent,
   deleteInquiry,
   deleteResponse,
+  setActorWeek1Open,
   setInquiryStatus,
   setSurveyLock,
   updateCoachingStudentNote,
@@ -68,6 +69,14 @@ export async function toggleLock(formData: FormData) {
   const type = String(formData.get('type') ?? '') as Category;
   const locked = String(formData.get('locked') ?? '') === 'true';
   await setSurveyLock(actorId, type, locked);
+  revalidatePath(`/admin/${actorId}`);
+}
+
+export async function toggleWeek1Open(formData: FormData) {
+  await requireAdmin();
+  const actorId = String(formData.get('actorId') ?? '');
+  const open = String(formData.get('open') ?? '') === 'true';
+  if (actorId) await setActorWeek1Open(actorId, open);
   revalidatePath(`/admin/${actorId}`);
 }
 

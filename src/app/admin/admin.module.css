@@ -131,6 +131,16 @@
 .cohortGroup { margin-bottom: 26px; }
 .cohortTitle { font-size: 15px; font-weight: 800; color: var(--navy); margin: 0 0 10px; }
 
+.weekHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.weekHead > div { flex: 1; }
+@media (max-width: 760px) {
+  .weekHead { display: grid; }
+}
+
 /* ---------- 코칭 메모 ---------- */
 .noteForm { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; }
 .noteArea {

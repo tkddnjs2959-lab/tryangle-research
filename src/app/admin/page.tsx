@@ -9,7 +9,7 @@ import AdminTabs from './AdminTabs';
 import styles from './admin.module.css';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: '배우 목록 · 어드민', robots: { index: false, follow: false } };
+export const metadata = { title: '캐릭터포지셔닝 관리 · 어드민', robots: { index: false, follow: false } };
 
 export default async function Page() {
   if (!(await isLoggedIn())) redirect('/admin/login');
@@ -35,7 +35,8 @@ export default async function Page() {
       <header className={styles.topbar}>
         <div>
           <div className={styles.brand}>ARTIST BRANDING COMPANY TRY앵글</div>
-          <h1 className={styles.h1}>배우 목록</h1>
+          <h1 className={styles.h1}>캐릭터포지셔닝 관리</h1>
+          <div className={styles.meta}>기수를 큰 틀로 두고, 각 기수 안에서 배우별 리서치와 1주차 분석 진행을 관리합니다.</div>
         </div>
         <div className={styles.topbarActions}>
           <Link href="/admin/inquiries" className={`${styles.btn} ${styles.ghost}`}>

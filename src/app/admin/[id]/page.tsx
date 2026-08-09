@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
 import { aggregate, getActor, getSelfPicks, listResponses } from '@/lib/admin-data';
 import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
-import { removeResponse, toggleLock } from '../actions';
+import { removeResponse, toggleLock, toggleWeek1Open } from '../actions';
 import LinkBox from './LinkBox';
 import Review from './Review';
 import styles from '../admin.module.css';
@@ -33,7 +33,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <header className={styles.topbar}>
         <div>
           <Link href="/admin" className={styles.back}>
-            ← 배우 목록
+            ← 캐릭터포지셔닝 관리
           </Link>
           <h1 className={styles.h1}>{actor.name}</h1>
           <div className={styles.meta}>
@@ -94,6 +94,28 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className={styles.block}>
+        <div className={styles.weekHead}>
+          <div>
+            <h2 className={styles.blockTitle}>1주차 분석 내용 공개</h2>
+            <p className={styles.blockHint}>
+              지금은 카카오톡 연동 전 단계입니다. 공개로 바꾸면 배우가 기존 진행 현황 링크에서
+              1주차 분석 내용 확인 섹션을 볼 수 있습니다.
+            </p>
+          </div>
+          <form action={toggleWeek1Open}>
+            <input type="hidden" name="actorId" value={actor.id} />
+            <input type="hidden" name="open" value={String(!actor.week1Open)} />
+            <button className={`${styles.btn} ${actor.week1Open ? styles.ghost : ''}`} type="submit">
+              {actor.week1Open ? '배우 화면 비공개로 변경' : '배우에게 1주차 공개'}
+            </button>
+          </form>
+        </div>
+        <div className={actor.week1Open ? styles.openTag : styles.closedTag}>
+          현재 상태: {actor.week1Open ? '배우에게 공개 중' : '관리자만 확인 가능'}
+        </div>
       </section>
 
       <Review

@@ -10,18 +10,20 @@ export type ActorRow = {
   cohort: string | null;
   status: string;
   progressToken: string;
+  week1Open: boolean;
   createdAt: string;
   surveys: { type: Category; token: string; n: number; minN: number; met: boolean; isOpen: boolean }[];
 };
 
 const ORDER: Category[] = ['image', 'personality', 'self'];
+const WEEK1_OPEN_MARK = '[[week1_open]]';
 
 export async function listActors(): Promise<ActorRow[]> {
   const supabase = db();
 
   const { data: actors } = await supabase
     .from('actors')
-    .select('id, name, birth_year, gender, cohort, status, progress_token, created_at')
+    .select('id, name, birth_year, gender, cohort, status, progress_token, note, created_at')
     .order('created_at', { ascending: false });
 
   if (!actors?.length) return [];
@@ -38,6 +40,7 @@ export async function listActors(): Promise<ActorRow[]> {
     cohort: a.cohort,
     status: a.status,
     progressToken: a.progress_token,
+    week1Open: String(a.note ?? '').includes(WEEK1_OPEN_MARK),
     createdAt: a.created_at,
     surveys: (progress ?? [])
       .filter((p) => p.actor_id === a.id)
@@ -203,6 +206,27 @@ export async function setSurveyLock(actorId: string, type: Category, locked: boo
     .update({ locked })
     .eq('actor_id', actorId)
     .eq('type', type);
+  if (error) throw new Error(error.message);
+}
+
+export async function setActorWeek1Open(actorId: string, open: boolean) {
+  const supabase = db();
+  const { data: actor, error: readError } = await supabase
+    .from('actors')
+    .select('note')
+    .eq('id', actorId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+
+  const note = String(actor?.note ?? '');
+  const cleaned = note
+    .split('\n')
+    .filter((line) => line.trim() !== WEEK1_OPEN_MARK)
+    .join('\n')
+    .trim();
+  const nextNote = open ? [cleaned, WEEK1_OPEN_MARK].filter(Boolean).join('\n') : cleaned || null;
+
+  const { error } = await supabase.from('actors').update({ note: nextNote }).eq('id', actorId);
   if (error) throw new Error(error.message);
 }
 

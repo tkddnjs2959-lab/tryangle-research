@@ -2,6 +2,8 @@ import 'server-only';
 import { db } from './supabase';
 import { TOKEN_RE, type Category, type Gender, type Keyword, type SurveyView } from './types';
 
+const WEEK1_OPEN_MARK = '[[week1_open]]';
+
 /**
  * 토큰으로 리서치를 조회한다.
  * 응답 페이지가 쓰는 유일한 진입점 — 다른 배우의 정보는 나올 수 없다.
@@ -74,6 +76,7 @@ export type SurveyProgress = {
 
 export type ProgressView = {
   actorName: string;
+  week1Open: boolean;
   surveys: SurveyProgress[];
 };
 
@@ -90,7 +93,7 @@ export async function getProgressByToken(token: string): Promise<ProgressView | 
 
   const { data: actor } = await supabase
     .from('actors')
-    .select('id, name')
+    .select('id, name, note')
     .eq('progress_token', token)
     .maybeSingle();
 
@@ -113,7 +116,11 @@ export async function getProgressByToken(token: string): Promise<ProgressView | 
     }))
     .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
 
-  return { actorName: actor.name, surveys };
+  return {
+    actorName: actor.name,
+    week1Open: String(actor.note ?? '').includes(WEEK1_OPEN_MARK),
+    surveys,
+  };
 }
 
 /** DB 함수(submit_response)가 올리는 코드 → 사람이 읽는 문구 */
