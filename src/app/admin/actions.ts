@@ -22,6 +22,13 @@ import {
   type InquiryStatus,
 } from '@/lib/admin-data';
 import { listActorIdsInCohort, notifyActorsWeekOpen } from '@/lib/actor-notify';
+import {
+  clearFailures,
+  clientIp,
+  humanizeSeconds,
+  lockedSeconds,
+  recordFailure,
+} from '@/lib/login-throttle';
 import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
@@ -33,7 +40,23 @@ async function requireAdmin() {
 export async function login(_prev: string | null, form: FormData): Promise<string | null> {
   const pw = String(form.get('password') ?? '');
   if (!pw) return '비밀번호를 입력해주세요.';
-  if (!checkPassword(pw)) return '비밀번호가 올바르지 않습니다.';
+
+  // 공개 배포된 로그인 화면이라 대입 공격을 시도 제한으로 막는다.
+  const ip = await clientIp();
+  const locked = await lockedSeconds(ip);
+  if (locked !== null) {
+    return `로그인 시도가 너무 많습니다. ${humanizeSeconds(locked)} 후에 다시 시도해주세요.`;
+  }
+
+  if (!checkPassword(pw)) {
+    const lockedFor = await recordFailure(ip);
+    if (lockedFor !== null) {
+      return `비밀번호를 여러 번 틀렸습니다. ${humanizeSeconds(lockedFor)} 동안 잠깁니다.`;
+    }
+    return '비밀번호가 올바르지 않습니다.';
+  }
+
+  await clearFailures(ip);
   await createSession();
   redirect('/admin');
 }

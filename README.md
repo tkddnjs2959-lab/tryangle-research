@@ -179,8 +179,52 @@ npm run dev
 - [x] 1~12주차 공개 구조
 - [ ] 2~12주차 커리큘럼 확정 및 각 주차 툴 (지금은 공개 여부만 관리)
 - [ ] 남자 ver 키워드 시딩 (`gender='male'`) — 표 받는 대로
-- [ ] Vercel 배포 (환경변수 4개 등록)
+- [ ] Vercel 배포 — 코드는 준비됨, [배포](#배포-vercel) 순서대로 진행 필요
 - [ ] 카카오톡 알림 연동 (주차 공개 시 배우에게 자동 안내)
+
+## 배포 (Vercel)
+
+이 앱은 **정문이 없다.** 루트는 안내만 띄우고, 실제 진입은 토큰 링크와
+어드민 로그인뿐이다. `robots.ts` 가 전체를 검색엔진에서 막는다.
+
+### 순서
+
+1. **Vercel 에 저장소 임포트** — `tkddnjs2959-lab/tryangle-research`.
+   Next.js 로 자동 인식되므로 빌드 설정은 건드릴 필요가 없다.
+2. **환경변수 등록** (Production + Preview). 값은 `.env.local.example` 참고.
+
+   | 변수 | 필수 | 비고 |
+   | --- | --- | --- |
+   | `SUPABASE_URL` | ✅ | `https://xvpqjawckzdkzkohhbdg.supabase.co` |
+   | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | **마스터 키.** `NEXT_PUBLIC_` 붙이지 말 것 |
+   | `ADMIN_PASSWORD` | ✅ | 어드민 로그인 비밀번호 |
+   | `SESSION_SECRET` | ✅ | 긴 랜덤 문자열 |
+   | `KAKAO_REST_API_KEY` | 배우 로그인용 | |
+   | `KAKAO_ACTOR_REDIRECT_URI` | 배우 로그인용 | `https://<도메인>/api/actor/kakao/callback` |
+   | `KAKAO_CLIENT_SECRET` | 콘솔에서 켠 경우만 | |
+   | `KAKAO_ACTOR_SCOPES` | 알림 쓸 때만 | 아래 [주차 공개 알림](#주차-공개-알림-카카오) 순서를 먼저 볼 것 |
+   | `PUBLIC_BASE_URL` | 알림 링크용 | `https://<도메인>` |
+
+3. **도메인 연결** — `.env.local.example` 은 `app.tryangle-official.co.kr` 을
+   전제로 적어뒀다. 다른 주소로 붙이면 아래 카카오 설정도 같이 맞춰야 한다.
+4. **카카오 디벨로퍼스** — 앱 설정 > 플랫폼 > Web 에 도메인 등록,
+   카카오 로그인 > Redirect URI 에 `https://<도메인>/api/actor/kakao/callback`
+   등록 (`KAKAO_ACTOR_REDIRECT_URI` 와 **한 글자도 다르면 안 된다**).
+5. **배포 후 확인** — 아래 점검 목록.
+
+### 배포 후 점검 목록
+
+아직 아무도 실물 화면을 못 봤다. 배포하면 이 순서로 한 번 훑는다.
+
+- [ ] `/` 안내 문구만 뜨는지 · `/robots.txt` 가 `Disallow: /` 인지
+- [ ] `/admin/login` 로그인 · **일부러 5번 틀려서 잠기는지** (15분 잠김)
+- [ ] `/admin` 배우 카드에 상태 뱃지와 할 일 문장이 뜨는지
+- [ ] `/admin/cohort/<기수>` 주차 제목 저장 · 기수 전체 공개 토글
+- [ ] `/admin/<배우>` 12주차 목록 · 개별 공개/차단/기수 따르기
+- [ ] `/admin/<배우>` 1:1 코칭 연동 버튼 → 코칭 탭에 나타나는지
+- [ ] `/s/<진행토큰>` 공개된 주차만 보이는지
+- [ ] 삭제·보관 버튼 확인창
+- [ ] 카카오 로그인 (Redirect URI 불일치가 가장 흔한 실패)
 
 ## 주차 공개 알림 (카카오)
 
@@ -264,6 +308,20 @@ npm run dev
 ## 작업 기록
 
 새 항목은 이 줄 바로 아래에 추가한다 (최신이 위).
+
+### 2026-08-09 — 배포 준비 (로그인 시도 제한 · robots 차단)
+
+배포하면 어드민이 공개 인터넷에 노출된다. 올리기 전에 막아둔 것들.
+
+- 마이그레이션 `20260809000006_admin_login_attempts.sql` — **원격 DB 에 적용 완료**.
+- `login-throttle.ts` 신설 — IP 기준 15분 안에 5번 틀리면 15분 잠금.
+  Vercel 은 서버리스라 메모리에 카운트를 둘 수 없어 테이블을 쓴다.
+  제한 장치가 고장 나도 로그인 자체를 막지는 않는다 (조회 실패 시 통과).
+- `robots.ts` — 앱 전체 검색엔진 차단. 경로를 나열하지 않는다(공개 파일이라
+  적으면 숨은 주소를 알려주는 꼴). 실제 통제는 토큰과 로그인이 한다.
+- README 에 [배포](#배포-vercel) 순서와 **배포 후 점검 목록** 추가.
+- 검증: `tsc --noEmit`, `npm run build` 통과(`/robots.txt` 생성 확인).
+  원격 DB 에서 잠김·창 만료·잠금 해제 3가지 판정을 확인하고 롤백했다.
 
 ### 2026-08-09 — 주차 공개 시 배우에게 카카오 알림
 
