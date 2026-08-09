@@ -4,11 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { checkPassword, createSession, destroySession, isLoggedIn } from '@/lib/admin-auth';
 import {
+  archiveCoachingStudent,
   createActor,
+  createCoachingStudent,
   deleteInquiry,
   deleteResponse,
   setInquiryStatus,
   setSurveyLock,
+  updateCoachingStudentNote,
   type InquiryStatus,
 } from '@/lib/admin-data';
 import { db } from '@/lib/supabase';
@@ -89,6 +92,41 @@ export async function removeInquiry(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   if (id) await deleteInquiry(id);
   revalidatePath('/admin/inquiries');
+}
+
+export async function addCoachingStudent(_prev: string | null, form: FormData): Promise<string | null> {
+  await requireAdmin();
+
+  const name = String(form.get('name') ?? '').trim();
+  if (!name) return '이름을 입력해주세요.';
+
+  const birthRaw = String(form.get('birthYear') ?? '').trim();
+  const birthYear = birthRaw ? Number(birthRaw) : null;
+  if (birthRaw && (!Number.isInteger(birthYear) || birthYear! < 1900 || birthYear! > 2100)) {
+    return '출생년도는 1900~2100 사이 숫자로 입력해주세요.';
+  }
+
+  const gender = (String(form.get('gender') ?? 'female') as Gender);
+  const contact = String(form.get('contact') ?? '').trim() || null;
+
+  await createCoachingStudent({ name, birthYear, gender, contact });
+  revalidatePath('/admin/coaching');
+  return null;
+}
+
+export async function saveCoachingNote(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  const note = String(formData.get('note') ?? '');
+  if (id) await updateCoachingStudentNote(id, note);
+  revalidatePath('/admin/coaching');
+}
+
+export async function removeCoachingStudent(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  if (id) await archiveCoachingStudent(id);
+  revalidatePath('/admin/coaching');
 }
 
 /** 확정 스냅샷 — 렌더 설정을 통째로 남겨 나중에 그대로 재현한다 */

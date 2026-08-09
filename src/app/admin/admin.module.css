@@ -112,6 +112,39 @@
 .loginTitle { font-size: 20px; font-weight: 800; margin: 10px 0 24px; }
 .loginForm { display: grid; gap: 10px; }
 
+/* ---------- 탭 ---------- */
+.tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+.tab {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--sub);
+  padding: 9px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.tab:hover { border-color: var(--sky-dot); }
+.tabOn { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+/* ---------- 기수 그룹 ---------- */
+.cohortGroup { margin-bottom: 26px; }
+.cohortTitle { font-size: 15px; font-weight: 800; color: var(--navy); margin: 0 0 10px; }
+
+/* ---------- 코칭 메모 ---------- */
+.noteForm { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; }
+.noteArea {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  resize: vertical;
+}
+.noteArea:focus { outline: none; border-color: var(--sky-dot); }
+
 /* ---------- 배우 카드 ---------- */
 .cards {
   display: grid;

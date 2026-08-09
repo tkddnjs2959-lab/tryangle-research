@@ -259,3 +259,65 @@ export async function deleteInquiry(id: string) {
   const { error } = await db().from('inquiries').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+// ---------------------------------------------------------------------
+// 1:1 매체연기 코칭 — 퍼스널 리서치(actors)와 별개 트랙
+// ---------------------------------------------------------------------
+export type CoachingStudentRow = {
+  id: string;
+  name: string;
+  birthYear: number | null;
+  gender: Gender;
+  contact: string | null;
+  note: string | null;
+  status: string;
+  createdAt: string;
+};
+
+export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
+  const { data, error } = await db()
+    .from('coaching_students')
+    .select('id, name, birth_year, gender, contact, note, status, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    birthYear: r.birth_year,
+    gender: r.gender as Gender,
+    contact: r.contact,
+    note: r.note,
+    status: r.status,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function createCoachingStudent(input: {
+  name: string;
+  birthYear: number | null;
+  gender: Gender;
+  contact: string | null;
+}) {
+  const { error } = await db().from('coaching_students').insert({
+    name: input.name,
+    birth_year: input.birthYear,
+    gender: input.gender,
+    contact: input.contact,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function updateCoachingStudentNote(id: string, note: string) {
+  const { error } = await db().from('coaching_students').update({ note }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function archiveCoachingStudent(id: string) {
+  const { error } = await db()
+    .from('coaching_students')
+    .update({ status: 'archived' })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
