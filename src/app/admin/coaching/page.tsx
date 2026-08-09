@@ -6,6 +6,7 @@ import { CATEGORY_LABEL } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
 import { logout, removeCoachingStudent, saveCoachingNote, unlinkCoaching } from '../actions';
 import AdminTabs from '../AdminTabs';
+import ConfirmButton from '../ConfirmButton';
 import styles from '../admin.module.css';
 import AddCoachingStudentForm from './AddCoachingStudentForm';
 
@@ -54,9 +55,12 @@ export default async function CoachingAdminPage() {
                 {s.actor && <span className={styles.linkTag}>퍼스널 브랜딩 연동</span>}
                 <form action={removeCoachingStudent}>
                   <input type="hidden" name="id" value={s.id} />
-                  <button className={styles.del} type="submit">
+                  <ConfirmButton
+                    className={styles.del}
+                    message={`${s.name} 학생을 보관 처리합니다. 목록에서 사라지지만 기록은 남습니다.`}
+                  >
                     보관
-                  </button>
+                  </ConfirmButton>
                 </form>
               </div>
 
@@ -75,9 +79,12 @@ export default async function CoachingAdminPage() {
                       </Link>
                       <form action={unlinkCoaching}>
                         <input type="hidden" name="id" value={s.id} />
-                        <button className={styles.del} type="submit">
+                        <ConfirmButton
+                          className={styles.del}
+                          message="퍼스널 브랜딩 연동만 끊습니다. 코칭 메모와 기록은 그대로 남습니다."
+                        >
                           연동 해제
-                        </button>
+                        </ConfirmButton>
                       </form>
                     </div>
                   </div>

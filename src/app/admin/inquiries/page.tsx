@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
 import { listInquiries, type InquiryStatus } from '@/lib/admin-data';
 import { changeInquiryStatus, removeInquiry } from '../actions';
+import ConfirmButton from '../ConfirmButton';
 import styles from '../admin.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ export default async function Page() {
       <header className={styles.topbar}>
         <div>
           <Link href="/admin" className={styles.back}>
-            ← 배우 목록
+            ← 캐릭터포지셔닝 관리
           </Link>
           <h1 className={styles.h1}>상담 문의</h1>
           <div className={styles.meta}>홈페이지 문의 폼으로 들어온 내용입니다</div>
@@ -93,9 +94,12 @@ function InquiryRow({
         </form>
         <form action={removeInquiry}>
           <input type="hidden" name="id" value={q.id} />
-          <button className={styles.del} type="submit">
+          <ConfirmButton
+            className={styles.del}
+            message={`${q.name} 님의 문의를 삭제합니다. 되돌릴 수 없습니다.`}
+          >
             삭제
-          </button>
+          </ConfirmButton>
         </form>
       </div>
     </li>

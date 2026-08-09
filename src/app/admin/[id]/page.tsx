@@ -12,6 +12,7 @@ import {
 import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
 import { SOURCE_LABEL, WEEK_COUNT, weekLabel } from '@/lib/weeks';
 import { removeResponse, sendActorToCoaching, setActorWeek, toggleLock } from '../actions';
+import ConfirmButton from '../ConfirmButton';
 import LinkBox from './LinkBox';
 import Review from './Review';
 import styles from '../admin.module.css';
@@ -260,9 +261,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                       <form action={removeResponse}>
                         <input type="hidden" name="responseId" value={r.id} />
                         <input type="hidden" name="actorId" value={actor.id} />
-                        <button className={styles.del} type="submit">
+                        <ConfirmButton
+                          className={styles.del}
+                          message={`응답자 ${i + 1}의 응답을 삭제합니다. 되돌릴 수 없습니다.`}
+                        >
                           삭제
-                        </button>
+                        </ConfirmButton>
                       </form>
                     </div>
                     <div className={styles.respTags}>

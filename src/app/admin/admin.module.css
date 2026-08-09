@@ -239,6 +239,37 @@
   .infoGrid { grid-template-columns: 1fr; }
 }
 
+/* ---------- 배우 상태 (다음 할 일) ---------- */
+.summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.summaryItem {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sub);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 6px 12px;
+}
+.summaryItem b { font-weight: 800; margin-left: 2px; }
+
+.statusPill {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 20px;
+  padding: 3px 9px;
+  margin-top: 8px;
+}
+.nextAction { font-size: 12px; line-height: 1.6; color: var(--sub); margin: 6px 0 0; }
+
+/* 검수 대기 = 대표가 지금 바로 손댈 수 있는 배우라 눈에 띄게 둔다 */
+.st_ready { background: var(--navy); color: #fff; border-color: var(--navy); }
+.st_collecting { background: #fff6e5; color: #8a5a00; }
+.st_running { background: var(--sky-bg); color: var(--navy); }
+.st_done { background: var(--line); color: var(--sub); }
+.cardUrgent { border-color: var(--navy); }
+
 /* ---------- 퍼스널 브랜딩 ↔ 코칭 연동 ---------- */
 .linkTag {
   font-size: 11px;

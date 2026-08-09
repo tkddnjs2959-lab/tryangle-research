@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
 import { countNewInquiries, listActors, listOpenWeekCountByCohort } from '@/lib/admin-data';
+import {
+  STATUS_SUMMARY_LABEL,
+  actorStatus,
+  compareByStatus,
+  type ActorStatusKey,
+} from '@/lib/actor-status';
 import { CATEGORY_LABEL } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
 import { logout } from './actions';
@@ -20,7 +26,13 @@ export default async function Page() {
     countNewInquiries(),
     listOpenWeekCountByCohort(),
   ]);
-  const active = actors.filter((a) => a.status !== 'archived');
+  const active = actors
+    .filter((a) => a.status !== 'archived')
+    .map((a) => ({ ...a, next: actorStatus({ surveys: a.surveys, openWeeks: a.openWeeks }) }));
+
+  // 상태별 몇 명인지 — 목록을 훑기 전에 오늘 할 일의 규모를 먼저 보여준다.
+  const summary = new Map<ActorStatusKey, number>();
+  for (const a of active) summary.set(a.next.key, (summary.get(a.next.key) ?? 0) + 1);
 
   const UNASSIGNED = '기수 미지정';
   const groups = new Map<string, typeof active>();
@@ -28,6 +40,10 @@ export default async function Page() {
     const key = a.cohort || UNASSIGNED;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(a);
+  }
+  // 기수 안에서는 조치가 필요한 배우를 위로 올린다.
+  for (const list of groups.values()) {
+    list.sort((x, y) => compareByStatus(x.next, y.next) || x.name.localeCompare(y.name, 'ko'));
   }
   const cohortOrder = [...groups.keys()].sort((a, b) => {
     if (a === UNASSIGNED) return 1;
@@ -57,6 +73,18 @@ export default async function Page() {
 
       <AdminTabs active="class" />
 
+      {active.length > 0 && (
+        <div className={styles.summary}>
+          {(['ready', 'collecting', 'running', 'done'] as ActorStatusKey[])
+            .filter((k) => (summary.get(k) ?? 0) > 0)
+            .map((k) => (
+              <span key={k} className={`${styles.summaryItem} ${styles['st_' + k]}`}>
+                {STATUS_SUMMARY_LABEL[k]} <b>{summary.get(k)}</b>
+              </span>
+            ))}
+        </div>
+      )}
+
       <AddActorForm />
 
       {active.length === 0 ? (
@@ -81,7 +109,11 @@ export default async function Page() {
             </div>
             <div className={styles.cards}>
               {groups.get(cohort)!.map((a) => (
-                <Link key={a.id} href={`/admin/${a.id}`} className={styles.card}>
+                <Link
+                  key={a.id}
+                  href={`/admin/${a.id}`}
+                  className={`${styles.card} ${a.next.urgent ? styles.cardUrgent : ''}`}
+                >
                   <div className={styles.cardHead}>
                     <strong>{a.name}</strong>
                     <span className={styles.meta}>
@@ -90,6 +122,11 @@ export default async function Page() {
                         .join(' · ')}
                     </span>
                   </div>
+
+                  <div className={`${styles.statusPill} ${styles['st_' + a.next.key]}`}>
+                    {a.next.label}
+                  </div>
+                  <p className={styles.nextAction}>{a.next.action}</p>
                   <div className={styles.cardRows}>
                     {a.surveys
                       .filter((s) => s.type !== 'self')
