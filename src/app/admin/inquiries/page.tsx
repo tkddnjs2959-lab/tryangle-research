@@ -23,6 +23,14 @@ export default async function Page() {
   const open = inquiries.filter((i) => i.status !== 'archived' && i.status !== 'done');
   const closed = inquiries.filter((i) => i.status === 'archived' || i.status === 'done');
 
+  // 어느 경로로 들어온 문의가 많은지 — 광고를 어디에 쓸지 판단하는 근거가 된다.
+  const bySource = new Map<string, number>();
+  for (const q of inquiries) {
+    const key = q.source || 'unknown';
+    bySource.set(key, (bySource.get(key) ?? 0) + 1);
+  }
+  const sourceRank = [...bySource.entries()].sort((a, b) => b[1] - a[1]);
+
   return (
     <main className={styles.page}>
       <header className={styles.topbar}>
@@ -34,6 +42,22 @@ export default async function Page() {
           <div className={styles.meta}>홈페이지 문의 폼으로 들어온 내용입니다</div>
         </div>
       </header>
+
+      {sourceRank.length > 0 && (
+        <section className={styles.block}>
+          <h2 className={styles.blockTitle}>유입 경로</h2>
+          <p className={styles.blockHint}>
+            전체 문의 {inquiries.length}건 기준입니다. 광고를 어디에 쓸지 판단하는 근거가 됩니다.
+          </p>
+          <div className={styles.summary}>
+            {sourceRank.map(([src, n]) => (
+              <span key={src} className={styles.summaryItem}>
+                {src} <b>{n}</b>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>
@@ -76,6 +100,12 @@ function InquiryRow({
         <span className={styles.inqContact}>{q.contact}</span>
         <span className={styles.dim}>{new Date(q.createdAt).toLocaleString('ko-KR')}</span>
         <span className={styles.statusTag}>{STATUS_LABEL[q.status]}</span>
+      </div>
+      <div className={styles.inqSource}>
+        <span className={styles.srcTag}>{q.source || 'unknown'}</span>
+        {q.medium && <span className={styles.srcTag}>{q.medium}</span>}
+        {q.campaign && <span className={styles.srcTag}>{q.campaign}</span>}
+        {q.content && <span className={styles.srcTag}>{q.content}</span>}
       </div>
       {q.message && <p className={styles.inqMsg}>{q.message}</p>}
       <div className={styles.inqActions}>

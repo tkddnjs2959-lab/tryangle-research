@@ -13,6 +13,7 @@ import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
 import { SOURCE_LABEL, WEEK_COUNT, weekLabel } from '@/lib/weeks';
 import { removeResponse, sendActorToCoaching, setActorWeek, toggleLock } from '../actions';
 import ConfirmButton from '../ConfirmButton';
+import NotifyBanner from '../NotifyBanner';
 import LinkBox from './LinkBox';
 import Review from './Review';
 import styles from '../admin.module.css';
@@ -20,10 +21,17 @@ import styles from '../admin.module.css';
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ nweek?: string; nsent?: string; nskip?: string; nfail?: string }>;
+}) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
   const { id } = await params;
+  const notify = await searchParams;
   const actor = await getActor(id);
   if (!actor) notFound();
 
@@ -59,6 +67,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       </header>
+
+      <NotifyBanner params={notify} />
 
       <LinkBox
         progressToken={actor.progressToken}

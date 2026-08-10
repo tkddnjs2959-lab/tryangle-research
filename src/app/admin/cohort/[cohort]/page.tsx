@@ -4,6 +4,7 @@ import { isLoggedIn } from '@/lib/admin-auth';
 import { listActors, listCohortWeeks } from '@/lib/admin-data';
 import { WEEK_COUNT } from '@/lib/weeks';
 import { saveCohortWeekTitle, toggleCohortWeek } from '../../actions';
+import NotifyBanner from '../../NotifyBanner';
 import styles from '../../admin.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -15,11 +16,18 @@ export const metadata = { robots: { index: false, follow: false } };
  * 여기서 연 주차는 그 기수 배우 전원에게 열린다.
  * 특정 배우만 다르게 하려면 배우 상세 화면에서 예외를 건다.
  */
-export default async function Page({ params }: { params: Promise<{ cohort: string }> }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ cohort: string }>;
+  searchParams: Promise<{ nweek?: string; nsent?: string; nskip?: string; nfail?: string }>;
+}) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
   const { cohort: raw } = await params;
   const cohort = decodeURIComponent(raw);
+  const notify = await searchParams;
 
   const [weeks, actors] = await Promise.all([listCohortWeeks(cohort), listActors()]);
   const members = actors.filter((a) => a.status !== 'archived' && a.cohort === cohort);
@@ -39,6 +47,8 @@ export default async function Page({ params }: { params: Promise<{ cohort: strin
           </div>
         </div>
       </header>
+
+      <NotifyBanner params={notify} />
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>주차 커리큘럼 · 공개</h2>

@@ -400,18 +400,33 @@ export type InquiryRow = {
   contact: string;
   message: string | null;
   source: string;
+  /**
+   * UTM 유입 정보. 홈페이지 쪽에서 준비 중인 컬럼이라 아직 DB 에 없을 수 있다.
+   * 없으면 null 로 들어오고 화면에서 그냥 표시하지 않는다.
+   */
+  medium: string | null;
+  campaign: string | null;
+  content: string | null;
   status: InquiryStatus;
   adminMemo: string | null;
   createdAt: string;
 };
 
 export async function listInquiries(): Promise<InquiryRow[]> {
+  // 컬럼을 나열하지 않고 * 로 받는다 — medium/campaign/content 는 홈페이지 쪽
+  // 마이그레이션이 적용된 뒤에야 생긴다. 나열하면 적용 전에 조회가 깨진다.
   const { data, error } = await db()
     .from('inquiries')
-    .select('id, name, contact, message, source, status, admin_memo, created_at')
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
+
+  // 값이 'unknown' 이면 유입을 모른다는 뜻이라 없는 것으로 친다.
+  const meaningful = (v: unknown): string | null => {
+    const s = typeof v === 'string' ? v.trim() : '';
+    return s && s !== 'unknown' ? s : null;
+  };
 
   return (data ?? []).map((r) => ({
     id: r.id,
@@ -419,6 +434,9 @@ export async function listInquiries(): Promise<InquiryRow[]> {
     contact: r.contact,
     message: r.message,
     source: r.source,
+    medium: meaningful(r.medium),
+    campaign: meaningful(r.campaign),
+    content: meaningful(r.content),
     status: r.status as InquiryStatus,
     adminMemo: r.admin_memo,
     createdAt: r.created_at,

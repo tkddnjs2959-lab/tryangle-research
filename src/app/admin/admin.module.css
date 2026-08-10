@@ -239,6 +239,33 @@
   .infoGrid { grid-template-columns: 1fr; }
 }
 
+/* ---------- 문의 유입 ---------- */
+.inqSource { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0; }
+.srcTag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--navy);
+  background: var(--sky-bg);
+  border: 1px solid var(--sky-line, var(--line));
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* ---------- 알림 결과 배너 ---------- */
+.banner {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+.banner strong { font-weight: 800; }
+.bannerOk { border-color: var(--ok); background: #f4fbf6; }
+.bannerWarn { border-color: #d99a00; background: #fff8e8; }
+.bannerPlain { background: #fff; }
+
 /* ---------- 배우 상태 (다음 할 일) ---------- */
 .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .summaryItem {

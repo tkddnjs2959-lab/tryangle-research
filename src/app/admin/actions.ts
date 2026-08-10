@@ -122,17 +122,34 @@ export async function toggleCohortWeek(formData: FormData) {
 
   await setCohortWeekOpen(cohort, week, open);
 
+  const path = `/admin/cohort/${encodeURIComponent(cohort)}`;
+
   // 공개할 때만 알린다. 닫는 것은 알리지 않는다.
   // 알림 실패는 공개 자체를 되돌리지 않는다 — 공개는 이미 반영된 사실이다.
   if (open) {
     const weeks = await listCohortWeeks(cohort);
     const title = weeks.find((w) => w.week === week)?.title ?? null;
     const actorIds = await listActorIdsInCohort(cohort);
-    await notifyActorsWeekOpen({ actorIds, week, title });
+    const result = await notifyActorsWeekOpen({ actorIds, week, title });
+
+    revalidatePath('/admin');
+    revalidatePath(path);
+    // 몇 명에게 갔는지 화면에서 알 수 있어야 한다 — 결과를 쿼리로 넘긴다.
+    redirect(`${path}?${notifyParams(week, result)}`);
   }
 
   revalidatePath('/admin');
-  revalidatePath(`/admin/cohort/${encodeURIComponent(cohort)}`);
+  revalidatePath(path);
+}
+
+/** 발송 결과를 주소창으로 넘기기 위한 쿼리 문자열 */
+function notifyParams(week: number, r: { sent: number; skipped: number; failed: number }) {
+  return new URLSearchParams({
+    nweek: String(week),
+    nsent: String(r.sent),
+    nskip: String(r.skipped),
+    nfail: String(r.failed),
+  }).toString();
 }
 
 export async function saveCohortWeekTitle(formData: FormData) {
@@ -164,7 +181,11 @@ export async function setActorWeek(formData: FormData) {
     const actor = await getActor(actorId);
     const weeks = actor?.cohort ? await listCohortWeeks(actor.cohort) : [];
     const title = weeks.find((w) => w.week === week)?.title ?? null;
-    await notifyActorsWeekOpen({ actorIds: [actorId], week, title });
+    const result = await notifyActorsWeekOpen({ actorIds: [actorId], week, title });
+
+    revalidatePath('/admin');
+    revalidatePath(`/admin/${actorId}`);
+    redirect(`/admin/${actorId}?${notifyParams(week, result)}`);
   }
 
   revalidatePath('/admin');
