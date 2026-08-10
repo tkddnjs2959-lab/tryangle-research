@@ -203,10 +203,14 @@ export async function updateActorProfile(input: {
 }
 
 /** 어드민 목록용 — 배우별 카카오 연결 여부와 프로필을 한 번에 가져온다. */
-export async function listActorAccounts(): Promise<
+export async function listActorAccounts(
+  actorIds?: string[]
+): Promise<
   Map<string, { kakaoLinked: boolean; notifyReady: boolean; profile: ActorProfile | null }>
 > {
-  const { data, error } = await db().from('actor_accounts').select(ACCOUNT_COLS);
+  // 배우를 지정하면 그 범위만 읽는다 — 상세 화면 하나 때문에 전체를 읽지 않는다.
+  const query = db().from('actor_accounts').select(ACCOUNT_COLS);
+  const { data, error } = actorIds ? await query.in('actor_id', actorIds) : await query;
   if (error) throw new Error(error.message);
 
   const out = new Map<

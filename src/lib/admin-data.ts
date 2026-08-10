@@ -31,22 +31,43 @@ export type ActorRow = {
 
 const ORDER: Category[] = ['image', 'personality', 'self'];
 
-export async function listActors(): Promise<ActorRow[]> {
+const ACTOR_SELECT = 'id, name, birth_year, gender, cohort, status, progress_token, note, created_at';
+
+type RawActor = {
+  id: string;
+  name: string;
+  birth_year: number | null;
+  gender: Gender;
+  cohort: string | null;
+  status: string;
+  progress_token: string;
+  created_at: string;
+};
+
+/**
+ * 배우 행에 진행 현황·주차·계정을 붙인다.
+ *
+ * 배우 몇 명이든 **딸린 조회는 항상 4번**이고, 넘겨받은 배우 범위로만 좁혀서 읽는다.
+ * 배우 한 명을 보려고 전체를 읽던 예전 구조를 여기로 모았다.
+ */
+async function buildActorRows(actors: RawActor[]): Promise<ActorRow[]> {
+  if (!actors.length) return [];
+
   const supabase = db();
-
-  const { data: actors } = await supabase
-    .from('actors')
-    .select('id, name, birth_year, gender, cohort, status, progress_token, note, created_at')
-    .order('created_at', { ascending: false });
-
-  if (!actors?.length) return [];
+  const ids = actors.map((a) => a.id);
+  const cohorts = [...new Set(actors.map((a) => a.cohort).filter((c): c is string => Boolean(c)))];
 
   const [{ data: progress }, { data: cohortWeeks }, { data: overrides }, accounts] =
     await Promise.all([
-      supabase.from('survey_progress').select('actor_id, type, token, n, min_n, met, is_open'),
-      supabase.from('cohort_weeks').select('cohort, week').eq('is_open', true),
-      supabase.from('actor_week_overrides').select('actor_id, week, is_open'),
-      listActorAccounts(),
+      supabase
+        .from('survey_progress')
+        .select('actor_id, type, token, n, min_n, met, is_open')
+        .in('actor_id', ids),
+      cohorts.length
+        ? supabase.from('cohort_weeks').select('cohort, week').eq('is_open', true).in('cohort', cohorts)
+        : Promise.resolve({ data: [] as { cohort: string; week: number }[] }),
+      supabase.from('actor_week_overrides').select('actor_id, week, is_open').in('actor_id', ids),
+      listActorAccounts(ids),
     ]);
 
   // 기수 공개 주차 → 배우별 예외 순으로 덮어써서 배우마다 열린 주차를 구한다.
@@ -95,9 +116,28 @@ export async function listActors(): Promise<ActorRow[]> {
   }));
 }
 
+export async function listActors(): Promise<ActorRow[]> {
+  const { data } = await db()
+    .from('actors')
+    .select(ACTOR_SELECT)
+    .order('created_at', { ascending: false });
+
+  return buildActorRows((data ?? []) as RawActor[]);
+}
+
+/** 배우 한 명만 읽는다 — 예전에는 전체 목록을 불러 그중 하나를 찾았다. */
 export async function getActor(id: string): Promise<ActorRow | null> {
-  const all = await listActors();
-  return all.find((a) => a.id === id) ?? null;
+  const { data } = await db().from('actors').select(ACTOR_SELECT).eq('id', id).maybeSingle();
+  if (!data) return null;
+
+  const rows = await buildActorRows([data as RawActor]);
+  return rows[0] ?? null;
+}
+
+export async function listActorsByIds(ids: string[]): Promise<ActorRow[]> {
+  if (ids.length === 0) return [];
+  const { data } = await db().from('actors').select(ACTOR_SELECT).in('id', ids);
+  return buildActorRows((data ?? []) as RawActor[]);
 }
 
 export type ResponseRow = {
@@ -515,11 +555,13 @@ export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
 
   if (error) throw new Error(error.message);
 
-  // 연동된 배우가 있을 때만 배우 목록을 끌어온다 (없으면 조회 자체를 건너뛴다).
-  const linkedIds = new Set(
-    (data ?? []).map((r) => r.actor_id as string | null).filter((v): v is string => Boolean(v))
-  );
-  const actors = linkedIds.size > 0 ? await listActors() : [];
+  // 연동된 배우만 읽는다 — 예전에는 전체 배우 목록을 끌어왔다.
+  const linkedIds = [
+    ...new Set(
+      (data ?? []).map((r) => r.actor_id as string | null).filter((v): v is string => Boolean(v))
+    ),
+  ];
+  const actors = await listActorsByIds(linkedIds);
   const actorById = new Map(actors.map((a) => [a.id, a]));
 
   return (data ?? []).map((r) => {

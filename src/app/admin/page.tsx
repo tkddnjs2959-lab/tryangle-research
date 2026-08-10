@@ -18,17 +18,34 @@ import styles from './admin.module.css';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '캐릭터포지셔닝 관리 · 어드민', robots: { index: false, follow: false } };
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
-  const [actors, newInquiries, openWeeksByCohort] = await Promise.all([
+  const [actors, newInquiries, openWeeksByCohort, sp] = await Promise.all([
     listActors(),
     countNewInquiries(),
     listOpenWeekCountByCohort(),
+    searchParams,
   ]);
-  const active = actors
+
+  const q = (sp.q ?? '').trim();
+  const needle = q.toLowerCase();
+
+  const all = actors
     .filter((a) => a.status !== 'archived')
     .map((a) => ({ ...a, next: actorStatus({ surveys: a.surveys, openWeeks: a.openWeeks }) }));
+
+  const active = needle
+    ? all.filter(
+        (a) =>
+          a.name.toLowerCase().includes(needle) ||
+          (a.cohort ?? '').toLowerCase().includes(needle)
+      )
+    : all;
 
   // 상태별 몇 명인지 — 목록을 훑기 전에 오늘 할 일의 규모를 먼저 보여준다.
   const summary = new Map<ActorStatusKey, number>();
@@ -73,6 +90,31 @@ export default async function Page() {
 
       <AdminTabs active="class" />
 
+      <form className={styles.searchForm} action="/admin" method="get">
+        <input
+          className={styles.searchInput}
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="배우 이름 또는 기수로 찾기"
+          aria-label="배우 검색"
+        />
+        <button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">
+          찾기
+        </button>
+        {q && (
+          <Link href="/admin" className={styles.searchClear}>
+            전체 보기
+          </Link>
+        )}
+      </form>
+
+      {q && (
+        <p className={styles.blockHint}>
+          &lsquo;{q}&rsquo; 검색 결과 {active.length}명 (전체 {all.length}명)
+        </p>
+      )}
+
       {active.length > 0 && (
         <div className={styles.summary}>
           {(['ready', 'collecting', 'running', 'done'] as ActorStatusKey[])
@@ -88,7 +130,9 @@ export default async function Page() {
       <AddActorForm />
 
       {active.length === 0 ? (
-        <p className={styles.empty}>등록된 배우가 없습니다. 위에서 추가해주세요.</p>
+        <p className={styles.empty}>
+          {q ? '검색 결과가 없습니다.' : '등록된 배우가 없습니다. 위에서 추가해주세요.'}
+        </p>
       ) : (
         cohortOrder.map((cohort) => (
           <section key={cohort} className={styles.cohortGroup}>

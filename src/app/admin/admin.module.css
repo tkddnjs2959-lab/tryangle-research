@@ -239,6 +239,19 @@
   .infoGrid { grid-template-columns: 1fr; }
 }
 
+/* ---------- 배우 검색 ---------- */
+.searchForm { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.searchInput {
+  flex: 1;
+  max-width: 320px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.searchClear { font-size: 12px; color: var(--sub); text-decoration: underline; }
+
 /* ---------- 변경 이력 · 삭제된 응답 ---------- */
 .respDeleted { opacity: 0.55; }
 .respDeleted .tag { text-decoration: line-through; }
