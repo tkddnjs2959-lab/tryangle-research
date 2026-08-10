@@ -239,6 +239,26 @@
   .infoGrid { grid-template-columns: 1fr; }
 }
 
+/* ---------- 변경 이력 · 삭제된 응답 ---------- */
+.respDeleted { opacity: 0.55; }
+.respDeleted .tag { text-decoration: line-through; }
+
+.auditList { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.auditItem {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12.5px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+.auditItem:last-child { border-bottom: none; }
+.auditWhen { flex: none; font-size: 11.5px; color: var(--sub); min-width: 128px; }
+@media (max-width: 560px) {
+  .auditItem { display: grid; gap: 2px; }
+}
+
 /* ---------- 문의 유입 ---------- */
 .inqSource { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0; }
 .srcTag {

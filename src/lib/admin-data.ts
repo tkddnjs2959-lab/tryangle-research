@@ -104,13 +104,20 @@ export type ResponseRow = {
   id: string;
   submittedAt: string;
   deviceHash: string | null;
+  deletedAt: string | null;
   labels: string[];
 };
 
-/** 어드민만 볼 수 있는 개별 응답. 배우에게는 절대 노출하지 않는다. */
+/**
+ * 어드민만 볼 수 있는 개별 응답. 배우에게는 절대 노출하지 않는다.
+ *
+ * 기본은 살아있는 응답만. `includeDeleted` 를 켜면 지운 것도 함께 준다
+ * (복구 화면용). 집계 함수들은 이 옵션을 쓰지 않는다.
+ */
 export async function listResponses(
   actorId: string,
-  type: Category
+  type: Category,
+  includeDeleted = false
 ): Promise<ResponseRow[]> {
   const supabase = db();
 
@@ -123,11 +130,14 @@ export async function listResponses(
 
   if (!survey) return [];
 
-  const { data } = await supabase
+  let query = supabase
     .from('responses')
-    .select('id, submitted_at, device_hash, response_keywords(custom_label, keywords(label))')
-    .eq('survey_id', survey.id)
-    .order('submitted_at', { ascending: true });
+    .select('id, submitted_at, device_hash, deleted_at, response_keywords(custom_label, keywords(label))')
+    .eq('survey_id', survey.id);
+
+  if (!includeDeleted) query = query.is('deleted_at', null);
+
+  const { data } = await query.order('submitted_at', { ascending: true });
 
   return (data ?? []).map((r) => {
     const rks = (r.response_keywords ?? []) as {
@@ -138,6 +148,7 @@ export async function listResponses(
       id: r.id,
       submittedAt: r.submitted_at,
       deviceHash: r.device_hash,
+      deletedAt: r.deleted_at ?? null,
       labels: rks.map((rk) => {
         const k = Array.isArray(rk.keywords) ? rk.keywords[0] : rk.keywords;
         return k?.label ?? rk.custom_label ?? '';
@@ -234,8 +245,21 @@ export async function createActor(input: {
   return data.id as string;
 }
 
+/**
+ * 응답 삭제 — 실제로 지우지 않고 deleted_at 만 찍는다.
+ * survey_progress 뷰와 submit_response 가 deleted_at is null 만 세므로
+ * 집계에서는 즉시 빠진다.
+ */
 export async function deleteResponse(id: string) {
-  const { error } = await db().from('responses').delete().eq('id', id);
+  const { error } = await db()
+    .from('responses')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function restoreResponse(id: string) {
+  const { error } = await db().from('responses').update({ deleted_at: null }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 

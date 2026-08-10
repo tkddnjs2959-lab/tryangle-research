@@ -12,6 +12,7 @@ import {
   getActor,
   linkActorToCoaching,
   listCohortWeeks,
+  restoreResponse,
   setActorWeekOverride,
   setCohortWeekOpen,
   setCohortWeekTitle,
@@ -22,6 +23,7 @@ import {
   type InquiryStatus,
 } from '@/lib/admin-data';
 import { listActorIdsInCohort, notifyActorsWeekOpen } from '@/lib/actor-notify';
+import { audit } from '@/lib/audit';
 import {
   clearFailures,
   clientIp,
@@ -81,7 +83,13 @@ export async function addActor(_prev: string | null, form: FormData): Promise<st
   const gender = (String(form.get('gender') ?? 'female') as Gender);
   const cohort = String(form.get('cohort') ?? '').trim() || null;
 
-  await createActor({ name, birthYear, gender, cohort });
+  const newId = await createActor({ name, birthYear, gender, cohort });
+  await audit({
+    action: 'actor_create',
+    targetType: 'actor',
+    targetId: newId,
+    summary: `배우 ${name}${cohort ? ` (${cohort})` : ''}를 등록했습니다.`,
+  });
   revalidatePath('/admin');
   return null;
 }
@@ -90,7 +98,34 @@ export async function removeResponse(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get('responseId') ?? '');
   const actorId = String(formData.get('actorId') ?? '');
-  if (id) await deleteResponse(id);
+  const label = String(formData.get('label') ?? '응답');
+  if (id) {
+    await deleteResponse(id);
+    await audit({
+      action: 'response_delete',
+      targetType: 'actor',
+      targetId: actorId,
+      summary: `${label}을(를) 삭제했습니다. 복구할 수 있습니다.`,
+      detail: { responseId: id },
+    });
+  }
+  revalidatePath(`/admin/${actorId}`);
+}
+
+export async function undoRemoveResponse(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('responseId') ?? '');
+  const actorId = String(formData.get('actorId') ?? '');
+  if (id) {
+    await restoreResponse(id);
+    await audit({
+      action: 'response_restore',
+      targetType: 'actor',
+      targetId: actorId,
+      summary: '삭제한 응답을 복구했습니다.',
+      detail: { responseId: id },
+    });
+  }
   revalidatePath(`/admin/${actorId}`);
 }
 
@@ -132,11 +167,27 @@ export async function toggleCohortWeek(formData: FormData) {
     const actorIds = await listActorIdsInCohort(cohort);
     const result = await notifyActorsWeekOpen({ actorIds, week, title });
 
+    await audit({
+      action: 'week_open',
+      targetType: 'cohort',
+      targetId: cohort,
+      summary: `${cohort} ${week}주차를 기수 전체에 공개했습니다. 알림 ${result.sent}명 발송.`,
+      detail: { week, ...result },
+    });
+
     revalidatePath('/admin');
     revalidatePath(path);
     // 몇 명에게 갔는지 화면에서 알 수 있어야 한다 — 결과를 쿼리로 넘긴다.
     redirect(`${path}?${notifyParams(week, result)}`);
   }
+
+  await audit({
+    action: 'week_close',
+    targetType: 'cohort',
+    targetId: cohort,
+    summary: `${cohort} ${week}주차를 비공개로 되돌렸습니다.`,
+    detail: { week },
+  });
 
   revalidatePath('/admin');
   revalidatePath(path);
@@ -176,6 +227,19 @@ export async function setActorWeek(formData: FormData) {
 
   const override = mode === 'open' ? true : mode === 'close' ? false : null;
   await setActorWeekOverride(actorId, week, override);
+
+  await audit({
+    action: 'week_override',
+    targetType: 'actor',
+    targetId: actorId,
+    summary:
+      mode === 'open'
+        ? `${week}주차를 이 배우에게만 공개했습니다.`
+        : mode === 'close'
+          ? `${week}주차를 이 배우에게만 비공개로 했습니다.`
+          : `${week}주차를 기수 설정을 따르도록 되돌렸습니다.`,
+    detail: { week, mode },
+  });
 
   if (mode === 'open') {
     const actor = await getActor(actorId);
@@ -253,6 +317,12 @@ export async function sendActorToCoaching(formData: FormData) {
   if (!actorId) return;
 
   await linkActorToCoaching(actorId);
+  await audit({
+    action: 'coaching_link',
+    targetType: 'actor',
+    targetId: actorId,
+    summary: '1:1 코칭 트랙으로 연동했습니다.',
+  });
   revalidatePath('/admin/coaching');
   revalidatePath(`/admin/${actorId}`);
   redirect('/admin/coaching');
@@ -261,7 +331,15 @@ export async function sendActorToCoaching(formData: FormData) {
 export async function unlinkCoaching(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get('id') ?? '');
-  if (id) await unlinkCoachingStudent(id);
+  if (id) {
+    await unlinkCoachingStudent(id);
+    await audit({
+      action: 'coaching_unlink',
+      targetType: 'coaching_student',
+      targetId: id,
+      summary: '퍼스널 브랜딩 연동을 해제했습니다. 코칭 기록은 남아 있습니다.',
+    });
+  }
   revalidatePath('/admin/coaching');
 }
 

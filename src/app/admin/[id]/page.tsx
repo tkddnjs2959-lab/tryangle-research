@@ -9,9 +9,16 @@ import {
   listActorWeeks,
   listResponses,
 } from '@/lib/admin-data';
+import { listAuditFor } from '@/lib/audit';
 import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
 import { SOURCE_LABEL, WEEK_COUNT, weekLabel } from '@/lib/weeks';
-import { removeResponse, sendActorToCoaching, setActorWeek, toggleLock } from '../actions';
+import {
+  removeResponse,
+  sendActorToCoaching,
+  setActorWeek,
+  toggleLock,
+  undoRemoveResponse,
+} from '../actions';
 import ConfirmButton from '../ConfirmButton';
 import NotifyBanner from '../NotifyBanner';
 import LinkBox from './LinkBox';
@@ -35,16 +42,26 @@ export default async function Page({
   const actor = await getActor(id);
   if (!actor) notFound();
 
-  const [imageAgg, personalityAgg, self, imageResp, personalityResp, weeks, coachingLink] =
-    await Promise.all([
-      aggregate(id, 'image'),
-      aggregate(id, 'personality'),
-      getSelfPicks(id),
-      listResponses(id, 'image'),
-      listResponses(id, 'personality'),
-      listActorWeeks(id, actor.cohort),
-      getCoachingLinkForActor(id),
-    ]);
+  const [
+    imageAgg,
+    personalityAgg,
+    self,
+    imageResp,
+    personalityResp,
+    weeks,
+    coachingLink,
+    history,
+  ] = await Promise.all([
+    aggregate(id, 'image'),
+    aggregate(id, 'personality'),
+    getSelfPicks(id),
+    // 삭제된 응답도 함께 받아 복구할 수 있게 한다 (집계에는 들어가지 않는다).
+    listResponses(id, 'image', true),
+    listResponses(id, 'personality', true),
+    listActorWeeks(id, actor.cohort),
+    getCoachingLinkForActor(id),
+    listAuditFor('actor', id),
+  ]);
 
   const responses = { image: imageResp, personality: personalityResp };
 
@@ -256,6 +273,7 @@ export default async function Page({
         <p className={styles.blockHint}>
           여기에서만 볼 수 있습니다. 배우에게는 집계만 전달됩니다.
           같은 기기에서 중복 제출한 것으로 보이면 지워주세요.
+          삭제해도 목록에는 남아 있어 복구할 수 있고, 집계에서만 즉시 빠집니다.
         </p>
 
         {(['image', 'personality'] as const).map((cat) => (
@@ -268,22 +286,34 @@ export default async function Page({
             ) : (
               <ul className={styles.respList}>
                 {responses[cat].map((r, i) => (
-                  <li key={r.id} className={styles.resp}>
+                  <li key={r.id} className={`${styles.resp} ${r.deletedAt ? styles.respDeleted : ''}`}>
                     <div className={styles.respHead}>
                       <strong>응답자 {i + 1}</strong>
                       <span className={styles.dim}>
                         {new Date(r.submittedAt).toLocaleString('ko-KR')} · {r.labels.length}개
+                        {r.deletedAt && ' · 삭제됨 (집계 제외)'}
                       </span>
-                      <form action={removeResponse}>
-                        <input type="hidden" name="responseId" value={r.id} />
-                        <input type="hidden" name="actorId" value={actor.id} />
-                        <ConfirmButton
-                          className={styles.del}
-                          message={`응답자 ${i + 1}의 응답을 삭제합니다. 되돌릴 수 없습니다.`}
-                        >
-                          삭제
-                        </ConfirmButton>
-                      </form>
+                      {r.deletedAt ? (
+                        <form action={undoRemoveResponse}>
+                          <input type="hidden" name="responseId" value={r.id} />
+                          <input type="hidden" name="actorId" value={actor.id} />
+                          <button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">
+                            복구
+                          </button>
+                        </form>
+                      ) : (
+                        <form action={removeResponse}>
+                          <input type="hidden" name="responseId" value={r.id} />
+                          <input type="hidden" name="actorId" value={actor.id} />
+                          <input type="hidden" name="label" value={`${CATEGORY_LABEL[cat]} 응답자 ${i + 1}`} />
+                          <ConfirmButton
+                            className={styles.del}
+                            message={`응답자 ${i + 1}의 응답을 집계에서 제외합니다. 이 목록에 남아 있어 복구할 수 있습니다.`}
+                          >
+                            삭제
+                          </ConfirmButton>
+                        </form>
+                      )}
                     </div>
                     <div className={styles.respTags}>
                       {r.labels.map((l) => (
@@ -298,6 +328,27 @@ export default async function Page({
             )}
           </div>
         ))}
+      </section>
+
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>변경 이력</h2>
+        <p className={styles.blockHint}>
+          이 배우에게 일어난 최근 변경입니다. 무엇을 눌렀는지 되짚을 때 씁니다.
+        </p>
+        {history.length === 0 ? (
+          <p className={styles.empty}>아직 기록이 없습니다.</p>
+        ) : (
+          <ul className={styles.auditList}>
+            {history.map((h) => (
+              <li key={h.id} className={styles.auditItem}>
+                <span className={styles.auditWhen}>
+                  {new Date(h.createdAt).toLocaleString('ko-KR')}
+                </span>
+                <span>{h.summary}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );
