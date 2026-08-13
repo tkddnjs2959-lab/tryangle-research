@@ -7,9 +7,15 @@ import styles from '../admin.module.css';
 export default function LinkBox({
   progressToken,
   surveys,
+  kakaoLinked,
+  notifyReady,
+  notifyNeedsReconnect,
 }: {
   progressToken: string;
   surveys: { type: Category; token: string }[];
+  kakaoLinked: boolean;
+  notifyReady: boolean;
+  notifyNeedsReconnect: boolean;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -43,6 +49,18 @@ export default function LinkBox({
       desc: AUDIENCE[s.type],
       path: `/r/${s.token}`,
     })),
+    {
+      key: 'kakao',
+      title: kakaoLinked ? '카카오 연결 완료' : '카카오 연결',
+      desc: notifyNeedsReconnect
+        ? '카카오 연결이 만료되어 배우의 재연결이 필요합니다'
+        : notifyReady
+        ? '주차 공개 알림을 보낼 수 있습니다'
+        : kakaoLinked
+          ? '로그인은 연결됐지만 메시지 동의가 필요합니다'
+          : '배우 본인이 로그인하고 알림 동의합니다',
+      path: `/api/actor/kakao/start?token=${encodeURIComponent(progressToken)}`,
+    },
   ];
 
   return (

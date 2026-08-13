@@ -12,6 +12,8 @@ const ERRORS: Record<string, string> = {
   invalid_state: '로그인 요청이 만료되었습니다. 진행 현황 링크에서 다시 시도해주세요.',
   invalid_actor: '배우 정보를 찾을 수 없습니다. 담당자에게 문의해주세요.',
   kakao_already_linked: '이미 다른 배우에게 연결된 카카오 계정입니다. 담당자에게 문의해주세요.',
+  kakao_cancelled: '카카오 로그인을 취소했습니다. 연결하려면 다시 시도해주세요.',
+  kakao_login_failed: '카카오 연결에 실패했습니다. 잠시 후 다시 시도해주세요.',
 };
 
 export default async function ActorPage({

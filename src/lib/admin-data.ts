@@ -24,6 +24,8 @@ export type ActorRow = {
   kakaoLinked: boolean;
   /** 카카오 메시지 동의까지 받아 주차 공개 알림을 보낼 수 있는 상태 */
   notifyReady: boolean;
+  /** refresh token 만료·철회 등으로 배우의 재연결이 필요한 상태 */
+  notifyNeedsReconnect: boolean;
   actorProfile: ActorProfile | null;
   createdAt: string;
   surveys: { type: Category; token: string; n: number; minN: number; met: boolean; isOpen: boolean }[];
@@ -100,6 +102,7 @@ async function buildActorRows(actors: RawActor[]): Promise<ActorRow[]> {
     ),
     kakaoLinked: accounts.get(a.id)?.kakaoLinked ?? false,
     notifyReady: accounts.get(a.id)?.notifyReady ?? false,
+    notifyNeedsReconnect: accounts.get(a.id)?.notifyNeedsReconnect ?? false,
     actorProfile: accounts.get(a.id)?.profile ?? null,
     createdAt: a.created_at,
     surveys: (progress ?? [])
@@ -681,4 +684,115 @@ export async function archiveCoachingStudent(id: string) {
     .update({ status: 'archived' })
     .eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+export async function countOpenInquiries(): Promise<number> {
+  const { count } = await db().from('inquiries').select('*', { count: 'exact', head: true }).not('status', 'in', '(done,archived)');
+  return count ?? 0;
+}
+
+export async function countInquiriesWithMemo(): Promise<number> {
+  const { count } = await db().from('inquiries').select('*', { count: 'exact', head: true }).not('admin_memo', 'is', null).neq('admin_memo', '');
+  return count ?? 0;
+}
+
+export async function setInquiryMemo(id: string, memo: string) {
+  const { error } = await db().from('inquiries').update({ admin_memo: memo.trim() || null }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ---------------------------------------------------------------------
+// 상담 CRM
+// ---------------------------------------------------------------------
+export type ConsultationSessionRow = {
+  id: string; actorId: string; consultedAt: string; consultationType: string;
+  durationSeconds: number | null; counselorName: string | null; source: string;
+  status: string; recordingPath: string | null; consentObtainedAt: string | null;
+  createdAt: string; transcript: ConsultationTranscriptRow | null;
+  analyses: ConsultationAnalysisRow[]; actionItemCount: number;
+};
+export type ConsultationTranscriptRow = { id: string; fullText: string; createdAt: string; updatedAt: string };
+export type ConsultationAnalysisRow = {
+  id: string; model: string; promptVersion: string; analysisVersion: number;
+  summary: string | null; structuredResult: Record<string, unknown>; inputHash: string;
+  status: string; reviewedAt: string | null; reviewedBy: string | null; createdAt: string;
+};
+export type ActionItemRow = {
+  id: string; sessionId: string; actorId: string; title: string; description: string | null;
+  assignee: string | null; dueAt: string | null; status: string; completedAt: string | null;
+};
+
+function mapSession(r: any, transcript: any, analyses: any[], actionItemCount: number): ConsultationSessionRow {
+  return {
+    id: r.id, actorId: r.actor_id, consultedAt: r.consulted_at, consultationType: r.consultation_type,
+    durationSeconds: r.duration_seconds, counselorName: r.counselor_name, source: r.source,
+    status: r.status, recordingPath: r.recording_path, consentObtainedAt: r.consent_obtained_at,
+    createdAt: r.created_at,
+    transcript: transcript ? { id: transcript.id, fullText: transcript.full_text, createdAt: transcript.created_at, updatedAt: transcript.updated_at } : null,
+    analyses: analyses.map((a) => ({ id: a.id, model: a.model, promptVersion: a.prompt_version, analysisVersion: a.analysis_version, summary: a.summary, structuredResult: a.structured_result, inputHash: a.input_hash, status: a.status, reviewedAt: a.reviewed_at, reviewedBy: a.reviewed_by, createdAt: a.created_at })),
+    actionItemCount,
+  };
+}
+
+export async function listConsultationSessions(actorId: string): Promise<ConsultationSessionRow[]> {
+  const supabase = db();
+  const { data, error } = await supabase.from('consultation_sessions').select('*').eq('actor_id', actorId).neq('status', 'archived').order('consulted_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return Promise.all((data ?? []).map(async (r: any) => {
+    const [t, a, items] = await Promise.all([
+      supabase.from('consultation_transcripts').select('id,full_text,created_at,updated_at').eq('session_id', r.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('consultation_analyses').select('*').eq('session_id', r.id).order('created_at', { ascending: false }),
+      supabase.from('consultation_action_items').select('id', { count: 'exact', head: true }).eq('session_id', r.id).neq('status', 'done').neq('status', 'cancelled'),
+    ]);
+    if (t.error || a.error || items.error) throw new Error((t.error || a.error || items.error)!.message);
+    return mapSession(r, t.data, a.data ?? [], items.count ?? 0);
+  }));
+}
+
+export async function getConsultationSession(sessionId: string): Promise<ConsultationSessionRow | null> {
+  const { data, error } = await db().from('consultation_sessions').select('*').eq('id', sessionId).maybeSingle();
+  if (error) throw new Error(error.message); if (!data) return null;
+  const supabase = db();
+  const [t, a, items] = await Promise.all([
+    supabase.from('consultation_transcripts').select('id,full_text,created_at,updated_at').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('consultation_analyses').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }),
+    supabase.from('consultation_action_items').select('id', { count: 'exact', head: true }).eq('session_id', sessionId).neq('status', 'done').neq('status', 'cancelled'),
+  ]);
+  if (t.error || a.error || items.error) throw new Error((t.error || a.error || items.error)!.message);
+  return mapSession(data, t.data, a.data ?? [], items.count ?? 0);
+}
+
+export async function createConsultationSession(input: { actorId: string; consultedAt: string; consultationType: string; durationSeconds: number | null; counselorName: string | null; source: string; recordingPath: string | null; consentObtainedAt: string | null }) {
+  const { data, error } = await db().from('consultation_sessions').insert({ actor_id: input.actorId, consulted_at: input.consultedAt, consultation_type: input.consultationType, duration_seconds: input.durationSeconds, counselor_name: input.counselorName, source: input.source, recording_path: input.recordingPath, consent_obtained_at: input.consentObtainedAt }).select('id').single();
+  if (error) throw new Error(error.message); return data.id as string;
+}
+export async function updateConsultationSession(sessionId: string, input: Record<string, unknown>) { const { error } = await db().from('consultation_sessions').update(input).eq('id', sessionId); if (error) throw new Error(error.message); }
+export async function archiveConsultationSession(sessionId: string) { await updateConsultationSession(sessionId, { status: 'archived', updated_at: new Date().toISOString() }); }
+export async function getLatestTranscript(sessionId: string) { const { data, error } = await db().from('consultation_transcripts').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(1).maybeSingle(); if (error) throw new Error(error.message); return data; }
+export async function saveConsultationTranscript(input: { sessionId: string; fullText: string }) {
+  const text = input.fullText.trim();
+  if (!text || text.length > 500_000) throw new Error('상담 원문 길이가 올바르지 않습니다.');
+  const session = await getConsultationSession(input.sessionId);
+  if (!session || session.status === 'archived') throw new Error('보관된 상담에는 원문을 추가할 수 없습니다.');
+  const { error } = await db().from('consultation_transcripts').insert({ session_id: input.sessionId, full_text: text });
+  if (error) throw new Error(error.message);
+  await updateConsultationSession(input.sessionId, { status: 'reviewed', updated_at: new Date().toISOString() });
+}
+export async function listConsultationAnalyses(sessionId: string) { const { data, error } = await db().from('consultation_analyses').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; }
+export async function getConsultationAnalysis(id: string) { const { data, error } = await db().from('consultation_analyses').select('id,session_id,status,structured_result').eq('id', id).maybeSingle(); if (error) throw new Error(error.message); return data; }
+export async function saveConsultationAnalysis(input: { sessionId: string; model: string; promptVersion: string; analysisVersion: number; summary: string | null; structuredResult: unknown; inputHash: string; tokenUsage: unknown; status?: string }) { const { data, error } = await db().from('consultation_analyses').insert({ session_id: input.sessionId, model: input.model, prompt_version: input.promptVersion, analysis_version: input.analysisVersion, summary: input.summary, structured_result: input.structuredResult, input_hash: input.inputHash, token_usage: input.tokenUsage, status: input.status ?? 'pending' }).select('id').single(); if (error) throw new Error(error.message); return data.id as string; }
+export async function approveConsultationAnalysis(id: string) { const { error } = await db().from('consultation_analyses').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', id); if (error) throw new Error(error.message); }
+export async function rejectConsultationAnalysis(id: string) { const { error } = await db().from('consultation_analyses').update({ status: 'rejected', reviewed_at: new Date().toISOString(), reviewed_by: 'admin' }).eq('id', id); if (error) throw new Error(error.message); }
+export async function listActionItems(actorId: string): Promise<ActionItemRow[]> { const { data, error } = await db().from('consultation_action_items').select('*').eq('actor_id', actorId).neq('status', 'done').neq('status', 'cancelled').order('due_at', { ascending: true, nullsFirst: false }); if (error) throw new Error(error.message); return (data ?? []).map((r: any) => ({ id:r.id, sessionId:r.session_id, actorId:r.actor_id, title:r.title, description:r.description, assignee:r.assignee, dueAt:r.due_at, status:r.status, completedAt:r.completed_at })); }
+export async function getActionItem(id: string) { const { data, error } = await db().from('consultation_action_items').select('id,session_id,actor_id,status').eq('id', id).maybeSingle(); if (error) throw new Error(error.message); return data; }
+export async function createActionItem(input: { sessionId: string; actorId: string; title: string; description?: string | null; assignee?: string | null; dueAt?: string | null }) { const { error } = await db().from('consultation_action_items').insert({ session_id: input.sessionId, actor_id: input.actorId, title: input.title, description: input.description ?? null, assignee: input.assignee ?? null, due_at: input.dueAt ?? null }); if (error) throw new Error(error.message); }
+export async function updateActionItem(id: string, input: { status?: string; title?: string; dueAt?: string | null }) {
+  const allowedStatuses = ['todo', 'in_progress', 'done', 'cancelled'];
+  if (input.status && !allowedStatuses.includes(input.status)) throw new Error('후속 조치 상태가 올바르지 않습니다.');
+  if (input.title !== undefined && (!input.title.trim() || input.title.trim().length > 300)) throw new Error('후속 조치 제목이 올바르지 않습니다.');
+  if (input.dueAt) {
+    const due = new Date(input.dueAt);
+    if (Number.isNaN(due.getTime())) throw new Error('후속 조치 기한이 올바르지 않습니다.');
+  }
+  const { error } = await db().from('consultation_action_items').update({ ...(input.status ? { status: input.status, completed_at: input.status === 'done' ? new Date().toISOString() : null } : {}), ...(input.title !== undefined ? { title: input.title.trim() } : {}), ...(input.dueAt !== undefined ? { due_at: input.dueAt } : {}), updated_at: new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message);
 }

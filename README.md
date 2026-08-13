@@ -184,6 +184,8 @@ npm run dev
 
 ## 배포 (Vercel)
 
+현재 저장소에는 홈페이지와 달리 `.vercel/project.json`이 포함되어 있지 않습니다. 따라서 Vercel에서 저장소를 연결하거나 CLI로 링크할 때 **`tryangle-research` 프로젝트를 새로 선택**해야 하며, `tryangle-homepage`의 project/org ID를 복사하면 안 됩니다. 연결 후 생성되는 `.vercel` 디렉터리는 비밀값이 아니지만 로컬 연결 정보이므로 Git에 커밋하지 않습니다.
+
 이 앱은 **정문이 없다.** 루트는 안내만 띄우고, 실제 진입은 토큰 링크와
 어드민 로그인뿐이다. `robots.ts` 가 전체를 검색엔진에서 막는다.
 
@@ -204,6 +206,11 @@ npm run dev
    | `KAKAO_CLIENT_SECRET` | 콘솔에서 켠 경우만 | |
    | `KAKAO_ACTOR_SCOPES` | 알림 쓸 때만 | 아래 [주차 공개 알림](#주차-공개-알림-카카오) 순서를 먼저 볼 것 |
    | `PUBLIC_BASE_URL` | 알림 링크용 | `https://<도메인>` |
+   | `DEEPSEEK_API_KEY` | 상담 AI를 켤 때만 | 서버 전용 키. `NEXT_PUBLIC_`로 등록하지 않는다 |
+   | `DEEPSEEK_MODEL` | 상담 AI를 켤 때만 | 기본값 `deepseek-chat` |
+   | `DEEPSEEK_ANALYSIS_ENABLED` | 상담 AI를 켤 때만 | 운영에서 `true`; `false`면 분석을 비활성화한다 |
+   | `KAKAO_PRIMARY_ADMIN_KEY` | 연결 해제 웹훅 사용 시 | Kakao Developers 대표 어드민 키(일반 REST 키 아님) |
+   | `KAKAO_APP_ID` | 연결 해제 웹훅 사용 시 | 웹훅 `app_id` 검증용 Kakao 앱 ID |
 
 3. **도메인 연결** — `.env.local.example` 은 `app.tryangle-official.co.kr` 을
    전제로 적어뒀다. 다른 주소로 붙이면 아래 카카오 설정도 같이 맞춰야 한다.
@@ -222,6 +229,44 @@ npm run dev
 - [ ] `/admin/<배우>` 응답 삭제 → 집계에서 빠지는지 → **복구**되는지
 - [ ] `/admin/<배우>` 변경 이력에 방금 한 일이 쌓이는지
 - [ ] `/admin/inquiries` 유입 경로 집계가 뜨는지
+- [ ] `/admin/inquiries` 유입·상담 전환 요약에서 문의 상태별 숫자가 맞는지
+- [ ] `/admin/inquiries` 유입 경로별 신규·연락·상담 완료 분류가 맞는지
+- [ ] `/admin/inquiries` 유입 경로별 연락률·상담률 계산이 맞는지
+- [ ] `/admin/inquiries?days=7` 및 `?days=30` 기간 필터가 적용되는지
+- [ ] `/admin/inquiries` CSV 내려받기가 로그인 상태에서 작동하는지
+- [ ] `/admin/inquiries` 화면 내 퍼널·KPI가 기간 필터와 함께 맞는지
+- [ ] `/admin/inquiries` UTM 조합별 상담률 표가 맞는지
+- [ ] `/admin/inquiries` 문의별 예약·결제·후속 연락 메모 저장이 되는지
+- [ ] 문의 메모를 `예약: 상태 | 결제: 상태 | 다음: 조치` 형식으로 기록하는지
+- [ ] `/admin/inquiries?view=open` 및 `?view=followup` 필터가 적용되는지
+- [ ] `/admin/inquiries?view=priority`에서 신규·미완료 문의가 우선 정렬되는지
+- [ ] `/admin`에서 신규·진행 중·후속 기록 문의 바로가기가 맞는지
+- [ ] TypeScript 검사: `npx tsc --noEmit --incremental false`
+- [ ] 어드민 프로덕션 빌드: `npm run build`
+
+## 2026-08-13 Marketing Admin Analysis
+
+- `/admin/inquiries` now supports period filters, funnel KPIs, source and UTM-combination conversion tables, inquiry memo tracking, follow-up/priority views, and authenticated CSV export.
+- Memo convention for local reservation and payment tracking: `예약: 예정/완료/취소 | 결제: 미정/완료 | 다음: 후속 조치`.
+- These metrics are based on inquiry records and do not replace confirmed booking or payment records.
+- Current local verification passed with `npx tsc --noEmit --incremental false` and `npm run build`.
+
+### Weekly operating sequence
+
+1. `/admin/inquiries?days=7&view=priority`에서 미완료 문의를 먼저 처리한다.
+2. 각 문의의 상태를 `연락 완료` 또는 `상담 완료`로 업데이트한다.
+3. 예약·결제 결과를 문의 메모에 `예약: 완료 | 결제: 완료 | 다음: -` 형식으로 기록한다.
+4. `/admin/inquiries?days=7`에서 전체 퍼널과 유입 경로별 상담률을 확인한다.
+5. UTM 조합별 상담률이 높은 캠페인·콘텐츠를 다음 주 운영 후보로 기록한다.
+6. 홈페이지의 `docs/marketing-scorecard-template.md`에 주간 수치를 옮겨 실제 결제 결과와 대조한다.
+
+### Interpretation rules
+
+- 문의는 많지만 상담률이 낮으면 응답 속도와 상담 안내 문구를 점검한다.
+- 상담률은 높지만 예약·결제가 낮으면 서비스 설명과 예약 절차를 점검한다.
+- `unknown`이 많은 채널은 게시물 링크에 UTM이 빠졌는지 확인한다.
+- 문의 데이터의 예약·결제 메모는 운영용 보조 기록이며, 확정 매출 장부를 대체하지 않는다.
+- [ ] 문의 메모의 `예약: 완료`·`결제: 완료`가 KPI에 반영되는지
 - [ ] `/admin/cohort/<기수>` 주차 제목 저장 · 기수 전체 공개 토글
 - [ ] `/admin/<배우>` 12주차 목록 · 개별 공개/차단/기수 따르기
 - [ ] `/admin/<배우>` 1:1 코칭 연동 버튼 → 코칭 탭에 나타나는지
@@ -481,3 +526,39 @@ npm run dev
 - `../퍼스널리서치_말풍선툴.html` — Phase 0 로컬 툴.
   집계·말풍선·보고서 렌더가 순수 함수로 들어있어 어드민으로 그대로 이식한다.
   인터넷이 안 되거나 종이 응답지를 받았을 때의 대비책으로도 남겨둔다.
+
+## 상담 CRM
+
+배우 상세 어드민에서 상담 세션, 상담 원문, AI 분석 초안, 검수 상태와 후속 조치를 관리한다. 원문은 `actors.note`가 아니라 `consultation_transcripts`에 저장하며, 브라우저 localStorage에는 저장하지 않는다. AI 분석은 자동 확정되지 않고 담당자가 승인해야 한다.
+
+### 상담 CRM 환경변수
+
+- `DEEPSEEK_API_KEY`: 서버 전용 DeepSeek API 키
+- `DEEPSEEK_MODEL`: 사용할 모델(기본 `deepseek-chat`)
+- `DEEPSEEK_ANALYSIS_ENABLED`: 운영 환경에서 분석 기능을 켤 때 사용하는 설정값
+
+Vercel에서는 위 세 변수와 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`,
+`SESSION_SECRET`을 최소 Production에 등록한다. `SUPABASE_SERVICE_ROLE_KEY`,
+`ADMIN_PASSWORD`, `SESSION_SECRET`, `DEEPSEEK_API_KEY`, `KAKAO_PRIMARY_ADMIN_KEY`는
+절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. Preview에서 실제 카카오/DeepSeek를 시험할 때는
+Preview 도메인을 Kakao Developers에 별도로 등록하고, 운영 키와 분리된 값을 사용한다.
+
+DeepSeek 키가 없어도 상담 원문 저장과 빌드는 정상 동작하며, 분석 요청은 실패 상태로 기록된다. 분석 요청 전 전화번호·이메일·주민등록번호·카카오 ID 등을 마스킹하고 배우 이름은 `ACTOR_001`로 치환한다. 결과는 내부 검수용 초안이다.
+
+클로바노트는 비공식 API나 공유 링크를 사용하지 않는다. 클로바노트에서 텍스트를 복사해 상담 원문에 붙여넣거나 `.txt` 파일을 등록하고 출처를 `클로바노트 가져오기`로 선택한다. 향후 CLOVA Speech API를 붙일 수 있도록 세션/트랜스크립트 구조를 분리했다.
+
+### 상담 CRM 마이그레이션
+
+배포 전 Supabase SQL Editor 또는 마이그레이션 도구로 `supabase/migrations/20260813000001_consultation_crm.sql`과 `supabase/migrations/20260813000002_consultation_fk_indexes.sql`을 기존 마이그레이션 이후에 적용한 다음 앱을 배포한다. 두 마이그레이션은 원격 프로젝트에 적용 완료되었으며, 기존 데이터는 삭제하거나 초기화하지 않는다.
+### 카카오 연결 해제 웹훅
+
+배우가 카카오 설정 화면에서 직접 연결을 해제한 경우에도 어드민의 연결 상태를 자동으로 동기화한다.
+
+- Kakao Developers에서 연결 해제 웹훅 URL을 `https://<도메인>/api/actor/kakao/unlink`로 등록한다.
+- `KAKAO_PRIMARY_ADMIN_KEY`에는 웹훅 인증에 사용할 Kakao Developers 대표 어드민 키를, `KAKAO_APP_ID`에는 카카오 앱 ID를 설정한다.
+- 엔드포인트는 카카오의 웹훅 인증 헤더를 확인하고, `app_id`와 `user_id`가 일치할 때만 연결 정보와 알림 토큰을 초기화한다.
+- 카카오의 재시도 방지를 위해 잘못된 요청이나 처리 오류에도 HTTP 200을 반환하며, 서비스의 배우 프로필/상담 데이터는 삭제하지 않는다.
+> 운영 주의: `KAKAO_PRIMARY_ADMIN_KEY`는 일반 REST API 키가 아니라 Kakao Developers의 대표 어드민 키를 사용한다.
+### 배포 전 반복 점검
+
+`npm run check`로 TypeScript 검사와 프로덕션 빌드를 한 번에 실행한다.

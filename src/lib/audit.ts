@@ -20,7 +20,18 @@ export type AuditAction =
   | 'response_restore'
   | 'coaching_link'
   | 'coaching_unlink'
-  | 'actor_create';
+  | 'actor_create'
+  | 'consultation_create'
+  | 'consultation_transcript_save'
+  | 'consultation_analysis_run'
+  | 'consultation_analysis_review'
+  | 'consultation_archive'
+  | 'consultation_action_update'
+  | 'kakao_link'
+  | 'kakao_link_failed'
+  | 'kakao_unlink'
+  | 'kakao_test_message'
+  | 'inquiry_export';
 
 export type AuditEntry = {
   id: number;

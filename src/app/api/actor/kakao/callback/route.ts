@@ -7,12 +7,16 @@ import {
 } from '@/lib/actor-account';
 import { createActorSession } from '@/lib/actor-session';
 import { exchangeKakaoCode, getKakaoUser } from '@/lib/kakao-login';
+import { audit } from '@/lib/audit';
 
 const STATE_COOKIE = 'actor_kakao_state';
 
 export async function GET(req: NextRequest) {
   const error = req.nextUrl.searchParams.get('error');
-  if (error) return NextResponse.redirect(new URL(`/actor?error=${encodeURIComponent(error)}`, req.url));
+  if (error) {
+    const safeError = error === 'access_denied' ? 'kakao_cancelled' : 'kakao_login_failed';
+    return NextResponse.redirect(new URL(`/actor?error=${safeError}`, req.url));
+  }
 
   const code = req.nextUrl.searchParams.get('code');
   const state = req.nextUrl.searchParams.get('state');
@@ -44,11 +48,24 @@ export async function GET(req: NextRequest) {
       refreshToken: token.refreshToken,
       refreshTokenExpiresIn: token.refreshTokenExpiresIn,
     });
+    await audit({
+      action: 'kakao_link',
+      targetType: 'actor',
+      targetId: actor.id,
+      summary: '배우 카카오 계정을 연결했습니다.',
+      detail: { hasMessageRefreshToken: Boolean(token.refreshToken) },
+    });
     await createActorSession(actor.id, kakao.id);
 
     return NextResponse.redirect(new URL('/actor', req.url));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : '카카오 로그인에 실패했습니다.';
-    return NextResponse.redirect(new URL(`/actor?error=${encodeURIComponent(msg)}`, req.url));
+    console.error('배우 카카오 연결 실패', { actorId: actor.id, error: e });
+    await audit({
+      action: 'kakao_link_failed',
+      targetType: 'actor',
+      targetId: actor.id,
+      summary: '배우 카카오 계정 연결에 실패했습니다.',
+    });
+    return NextResponse.redirect(new URL('/actor?error=kakao_login_failed', req.url));
   }
 }

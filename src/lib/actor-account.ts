@@ -95,6 +95,16 @@ async function loadAccount(actorId: string): Promise<AccountRowShape | null> {
   return (data as AccountRowShape | null) ?? null;
 }
 
+export async function getActorNotificationToken(actorId: string): Promise<string | null> {
+  const account = await loadAccount(actorId);
+  return account?.notify_enabled ? account.kakao_refresh_token : null;
+}
+
+export async function getActorKakaoRefreshToken(actorId: string): Promise<string | null> {
+  const account = await loadAccount(actorId);
+  return account?.kakao_refresh_token ?? null;
+}
+
 export async function getActorAccountByProgressToken(token: string): Promise<ActorAccount | null> {
   const { data, error } = await db()
     .from('actors')
@@ -170,11 +180,35 @@ export async function linkActorToKakao(input: {
         kakao_nickname: input.kakaoNickname ?? existing?.kakao_nickname ?? null,
         kakao_refresh_token: input.refreshToken ?? existing?.kakao_refresh_token ?? null,
         kakao_refresh_expires_at: refreshExpiresAt,
+        notify_enabled: input.refreshToken ? true : (existing?.notify_enabled ?? true),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'actor_id' }
     );
   if (error) throw new Error(error.message);
+}
+
+export async function unlinkActorFromKakao(actorId: string) {
+  const { error } = await db()
+    .from('actor_accounts')
+    .update({
+      kakao_user_id: null,
+      kakao_nickname: null,
+      kakao_refresh_token: null,
+      kakao_refresh_expires_at: null,
+      notify_enabled: false,
+      notified_weeks: [],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('actor_id', actorId);
+  if (error) throw new Error(error.message);
+}
+
+export async function unlinkActorFromKakaoUserId(kakaoUserId: string): Promise<string | null> {
+  const account = await findActorAccountByKakaoUserId(kakaoUserId);
+  if (!account) return null;
+  await unlinkActorFromKakao(account.id);
+  return account.id;
 }
 
 export async function updateActorProfile(input: {
@@ -206,7 +240,7 @@ export async function updateActorProfile(input: {
 export async function listActorAccounts(
   actorIds?: string[]
 ): Promise<
-  Map<string, { kakaoLinked: boolean; notifyReady: boolean; profile: ActorProfile | null }>
+  Map<string, { kakaoLinked: boolean; notifyReady: boolean; notifyNeedsReconnect: boolean; profile: ActorProfile | null }>
 > {
   // 배우를 지정하면 그 범위만 읽는다 — 상세 화면 하나 때문에 전체를 읽지 않는다.
   const query = db().from('actor_accounts').select(ACCOUNT_COLS);
@@ -215,13 +249,18 @@ export async function listActorAccounts(
 
   const out = new Map<
     string,
-    { kakaoLinked: boolean; notifyReady: boolean; profile: ActorProfile | null }
+    { kakaoLinked: boolean; notifyReady: boolean; notifyNeedsReconnect: boolean; profile: ActorProfile | null }
   >();
   for (const row of (data ?? []) as AccountRowShape[]) {
     out.set(row.actor_id, {
       kakaoLinked: Boolean(row.kakao_user_id),
       // 메시지 동의까지 받아야 알림을 보낼 수 있다 — 로그인만으로는 부족하다.
       notifyReady: Boolean(row.kakao_refresh_token) && row.notify_enabled,
+      notifyNeedsReconnect: Boolean(
+        row.kakao_user_id &&
+          (!row.kakao_refresh_token ||
+            (row.kakao_refresh_expires_at && new Date(row.kakao_refresh_expires_at).getTime() <= Date.now()))
+      ),
       profile: toProfile(row),
     });
   }

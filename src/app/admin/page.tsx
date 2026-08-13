@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { countNewInquiries, listActors, listOpenWeekCountByCohort } from '@/lib/admin-data';
+import { countNewInquiries, countOpenInquiries, countInquiriesWithMemo, listActors, listOpenWeekCountByCohort } from '@/lib/admin-data';
 import {
   STATUS_SUMMARY_LABEL,
   actorStatus,
@@ -25,9 +25,11 @@ export default async function Page({
 }) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
-  const [actors, newInquiries, openWeeksByCohort, sp] = await Promise.all([
+  const [actors, newInquiries, openInquiries, memoInquiries, openWeeksByCohort, sp] = await Promise.all([
     listActors(),
     countNewInquiries(),
+    countOpenInquiries(),
+    countInquiriesWithMemo(),
     listOpenWeekCountByCohort(),
     searchParams,
   ]);
@@ -80,6 +82,8 @@ export default async function Page({
           <Link href="/admin/inquiries" className={`${styles.btn} ${styles.ghost}`}>
             상담 문의{newInquiries > 0 && <em className={styles.countBadge}>{newInquiries}</em>}
           </Link>
+          <Link href="/admin/inquiries?view=open" className={`${styles.btn} ${styles.ghost}`}>진행 중 {openInquiries}</Link>
+          <Link href="/admin/inquiries?view=followup" className={`${styles.btn} ${styles.ghost}`}>후속 기록 {memoInquiries}</Link>
           <form action={logout}>
             <button className={`${styles.btn} ${styles.ghost}`} type="submit">
               로그아웃
@@ -192,6 +196,12 @@ export default async function Page({
                         }
                       >
                         {(a.surveys.find((s) => s.type === 'self')?.n ?? 0) > 0 ? '완료' : '미완료'}
+                      </span>
+                    </div>
+                    <div className={styles.cardRow}>
+                      <span>카카오 알림</span>
+                      <span className={a.notifyReady ? styles.ok : a.notifyNeedsReconnect ? styles.no : a.kakaoLinked ? styles.warnText : styles.no}>
+                        {a.notifyReady ? '사용 가능' : a.notifyNeedsReconnect ? '재연결 필요' : a.kakaoLinked ? '동의 필요' : '미연결'}
                       </span>
                     </div>
                   </div>

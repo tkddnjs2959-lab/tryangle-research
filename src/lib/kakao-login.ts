@@ -141,6 +141,19 @@ export async function sendKakaoMemo(input: {
   return true;
 }
 
+export async function unlinkKakaoUser(accessToken: string): Promise<boolean> {
+  const res = await fetch('https://kapi.kakao.com/v1/user/unlink', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    console.error('카카오 앱 연결 해제 실패', res.status, await res.text().catch(() => ''));
+    return false;
+  }
+  return true;
+}
+
 export async function getKakaoUser(accessToken: string): Promise<KakaoUser> {
   const res = await fetch('https://kapi.kakao.com/v2/user/me', {
     headers: { Authorization: `Bearer ${accessToken}` },

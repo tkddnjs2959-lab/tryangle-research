@@ -5,6 +5,8 @@ import {
   aggregate,
   getActor,
   getCoachingLinkForActor,
+  listActionItems,
+  listConsultationSessions,
   getSelfPicks,
   listActorWeeks,
   listResponses,
@@ -19,6 +21,16 @@ import {
   toggleLock,
   undoRemoveResponse,
 } from '../actions';
+import {
+  addConsultationActionItem,
+  archiveConsultation,
+  completeConsultationActionItem,
+  createConsultation,
+  sendActorKakaoTest,
+  unlinkActorKakao,
+  reviewConsultationAnalysis,
+  runConsultationAnalysis,
+} from '../actions';
 import ConfirmButton from '../ConfirmButton';
 import NotifyBanner from '../NotifyBanner';
 import LinkBox from './LinkBox';
@@ -28,12 +40,39 @@ import styles from '../admin.module.css';
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false } };
 
+const ANALYSIS_SECTIONS = [
+  ['consultation_purpose', '상담 목적'],
+  ['current_concerns', '현재 고민'],
+  ['goals', '목표'],
+  ['strengths', '강점'],
+  ['barriers', '장애 요인'],
+  ['external_image_observations', '외적 이미지 관찰'],
+  ['internal_image_observations', '내적 이미지 관찰'],
+  ['character_position_hypotheses', '캐릭터 포지션 가설'],
+  ['profile_strategy', '프로필 전략'],
+  ['acting_material_recommendations', '연기 자료 추천'],
+  ['agreed_actions', '합의한 후속 조치'],
+  ['follow_up_questions', '후속 질문'],
+  ['risk_flags', '위험 신호'],
+  ['evidence', '원문 근거'],
+] as const;
+
+function analysisItemText(value: unknown) {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return String(value ?? '');
+  const item = value as Record<string, unknown>;
+  if (typeof item.quote === 'string') {
+    return [item.claim, item.speaker, item.quote].filter(Boolean).map(String).join(' · ');
+  }
+  return Object.values(item).filter((part) => part != null && part !== '').map(String).join(' · ');
+}
+
 export default async function Page({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ nweek?: string; nsent?: string; nskip?: string; nfail?: string }>;
+  searchParams: Promise<{ nweek?: string; nsent?: string; nskip?: string; nfail?: string; kakao_test?: string; kakao_unlink?: string }>;
 }) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
@@ -51,6 +90,8 @@ export default async function Page({
     weeks,
     coachingLink,
     history,
+    consultations,
+    actionItems,
   ] = await Promise.all([
     aggregate(id, 'image'),
     aggregate(id, 'personality'),
@@ -61,6 +102,8 @@ export default async function Page({
     listActorWeeks(id, actor.cohort),
     getCoachingLinkForActor(id),
     listAuditFor('actor', id),
+    listConsultationSessions(id),
+    listActionItems(id),
   ]);
 
   const responses = { image: imageResp, personality: personalityResp };
@@ -86,10 +129,26 @@ export default async function Page({
       </header>
 
       <NotifyBanner params={notify} />
+      {notify.kakao_test && (
+        <div className={`${styles.banner} ${notify.kakao_test === 'sent' ? styles.bannerOk : styles.bannerWarn}`}>
+          {notify.kakao_test === 'sent' && '카카오 테스트 알림을 발송했습니다.'}
+          {notify.kakao_test === 'failed' && '카카오 테스트 알림 발송에 실패했습니다. 배우에게 재연결을 요청해주세요.'}
+          {notify.kakao_test === 'not_ready' && '카카오 메시지 동의가 없어 테스트 알림을 보낼 수 없습니다.'}
+        </div>
+      )}
+      {notify.kakao_unlink && (
+        <div className={`${styles.banner} ${notify.kakao_unlink === 'remote_ok' ? styles.bannerOk : styles.bannerWarn}`}>
+          {notify.kakao_unlink === 'remote_ok' && '카카오 연결과 서비스 내부 연결 정보를 모두 해제했습니다.'}
+          {notify.kakao_unlink === 'local_only' && '서비스 내부 연결 정보는 해제했지만 카카오 원격 해제 확인에는 실패했습니다. 배우가 카카오 설정에서 연결 상태를 확인해주세요.'}
+        </div>
+      )}
 
       <LinkBox
         progressToken={actor.progressToken}
         surveys={actor.surveys.map((s) => ({ type: s.type, token: s.token }))}
+        kakaoLinked={actor.kakaoLinked}
+        notifyReady={actor.notifyReady}
+        notifyNeedsReconnect={actor.notifyNeedsReconnect}
       />
 
       <section className={styles.block}>
@@ -258,6 +317,22 @@ export default async function Page({
             <code>{`/s/${actor.progressToken}`}</code>
           </div>
         </div>
+        <div className={styles.linkedActions}>
+          <form action={sendActorKakaoTest}>
+            <input type="hidden" name="actorId" value={actor.id} />
+            <button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit" disabled={!actor.notifyReady}>
+              테스트 알림 보내기
+            </button>
+          </form>
+          {actor.kakaoLinked && (
+            <form action={unlinkActorKakao}>
+              <input type="hidden" name="actorId" value={actor.id} />
+              <ConfirmButton className={`${styles.btn} ${styles.ghost} ${styles.sm}`} message="이 배우의 카카오 연결을 해제하시겠습니까?">
+                연결 해제
+              </ConfirmButton>
+            </form>
+          )}
+        </div>
       </section>
 
       <Review
@@ -267,6 +342,60 @@ export default async function Page({
         image={{ items: imageAgg.items, n: imageAgg.n, self: self.image }}
         personality={{ items: personalityAgg.items, n: personalityAgg.n, self: self.personality }}
       />
+
+      <section className={styles.block}>
+        <div className={styles.weekHead}>
+          <div>
+            <h2 className={styles.blockTitle}>상담 CRM</h2>
+            <p className={styles.blockHint}>상담 원문은 별도 상담 기록에 저장됩니다. AI 분석은 검수 전 초안이며, 상담 원문 저장과 분리되어 있습니다.</p>
+          </div>
+          <span className={styles.openTag}>{consultations.length}건</span>
+        </div>
+        <form action={createConsultation} className={styles.consultForm} encType="multipart/form-data">
+          <input type="hidden" name="actorId" value={actor.id} />
+          <label>상담일시<input name="consultedAt" type="datetime-local" required /></label>
+          <label>상담 유형<select name="consultationType" defaultValue="general"><option value="general">일반 상담</option><option value="profile">프로필</option><option value="coaching">코칭</option><option value="follow_up">후속 상담</option></select></label>
+          <label>상담 시간(초)<input name="durationSeconds" type="number" min="0" /></label>
+          <label>상담자<input name="counselorName" placeholder="이름" /></label>
+          <label className={styles.fullField}>상담 원문<textarea name="transcript" rows={7} placeholder="클로바노트에서 텍스트를 복사해 붙여넣으세요." /></label>
+          <label>텍스트 파일 불러오기<input name="transcriptFile" type="file" accept=".txt,text/plain" /></label>
+          <label>출처<select name="source" defaultValue="manual"><option value="manual">수동 입력</option><option value="clova_note_import">클로바노트 가져오기</option></select></label>
+          <label className={styles.fullField}>녹음 파일 경로 또는 메모<input name="recordingPath" /></label>
+          <label className={styles.consent}><input name="consent" type="checkbox" required /> 개인정보 처리 및 AI 분석 동의 확인</label>
+          <button className={styles.btn} type="submit">상담 등록</button>
+        </form>
+        {consultations.length === 0 ? <p className={styles.empty}>등록된 상담이 없습니다.</p> : <div className={styles.consultList}>
+          {consultations.map((c) => {
+            const latest = c.analyses[0];
+            const approved = c.analyses.find((analysis) => analysis.status === 'approved');
+            const result = latest?.structuredResult ?? {};
+            return <article key={c.id} className={styles.consultCard}>
+              <div className={styles.consultHead}><div><strong>{new Date(c.consultedAt).toLocaleString('ko-KR')}</strong><span className={styles.dim}> · {c.consultationType} · {c.source === 'clova_note_import' ? '클로바노트 수동 가져오기' : '수동 입력'}</span></div><span className={latest?.status === 'approved' ? styles.openTag : styles.statusTag}>{latest ? (latest.status === 'pending' ? '검수 필요' : latest.status === 'approved' ? '승인됨' : latest.status === 'rejected' ? '거절됨' : '분석 실패') : '분석 대기'}</span></div>
+              <div className={styles.consultMeta}>원문: {c.transcript ? '등록됨' : '없음'} · 미완료 후속 조치 {c.actionItemCount}개</div>
+              {c.transcript && <details><summary>상담 원문 보기</summary><p className={styles.transcript}>{c.transcript.fullText}</p></details>}
+              {c.transcript && <div className={styles.consultActions}><form action={runConsultationAnalysis}><input type="hidden" name="sessionId" value={c.id} /><button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">AI 분석 실행</button></form><form action={archiveConsultation}><input type="hidden" name="sessionId" value={c.id} /><input type="hidden" name="actorId" value={actor.id} /><ConfirmButton className={`${styles.btn} ${styles.ghost} ${styles.sm}`} message="이 상담을 보관하시겠습니까?">보관</ConfirmButton></form></div>}
+              {approved && approved.id !== latest?.id && <p className={styles.consultMeta}>최신 확정 분석: v{approved.analysisVersion}</p>}
+              {latest && <div className={styles.analysisBox}>
+                <h3>AI 분석 v{latest.analysisVersion}</h3>
+                <p>{String(result.summary || latest.summary || '')}</p>
+                {latest.status !== 'failed' && ANALYSIS_SECTIONS.map(([key, label]) => {
+                  const value = result[key];
+                  const items = Array.isArray(value) ? value : typeof value === 'string' && value ? [value] : [];
+                  if (items.length === 0) return null;
+                  return <div key={key} className={styles.analysisSection}><strong>{label}</strong><ul>{items.map((item, index) => <li key={`${key}-${index}`}>{analysisItemText(item)}</li>)}</ul></div>;
+                })}
+                {latest.status === 'pending' && <form action={reviewConsultationAnalysis} className={styles.consultActions}><input type="hidden" name="analysisId" value={latest.id} /><input type="hidden" name="sessionId" value={c.id} /><button className={styles.btn} name="status" value="approved">승인</button><button className={`${styles.btn} ${styles.ghost}`} name="status" value="rejected">거절</button></form>}
+              </div>}
+            </article>;
+          })}
+        </div>}
+      </section>
+
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>상담 후속 조치</h2>
+        <form action={addConsultationActionItem} className={styles.actionForm}><input type="hidden" name="actorId" value={actor.id} /><select name="sessionId" required defaultValue=""><option value="" disabled>상담 선택</option>{consultations.map((c) => <option key={c.id} value={c.id}>{new Date(c.consultedAt).toLocaleDateString('ko-KR')} · {c.consultationType}</option>)}</select><input name="title" placeholder="후속 조치" required /><input name="dueAt" type="date" /><button className={`${styles.btn} ${styles.sm}`} type="submit">추가</button></form>
+        {actionItems.length === 0 ? <p className={styles.empty}>미완료 후속 조치가 없습니다.</p> : <ul className={styles.auditList}>{actionItems.map((item) => <li key={item.id} className={styles.auditItem}><span>{item.title}{item.dueAt ? ` · 기한 ${new Date(item.dueAt).toLocaleDateString('ko-KR')}` : ''}</span><form action={completeConsultationActionItem}><input type="hidden" name="actionItemId" value={item.id} /><input type="hidden" name="actorId" value={actor.id} /><button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">완료</button></form></li>)}</ul>}
+      </section>
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>개별 응답</h2>

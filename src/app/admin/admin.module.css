@@ -36,6 +36,7 @@
   background: var(--card);
 }
 .blockTitle { font-size: 15px; font-weight: 700; margin: 0 0 5px; }
+.subTitle { font-size: 13px; font-weight: 700; margin: 22px 0 9px; }
 .blockTitle.mt { margin-top: 34px; }
 .blockHint {
   font-size: 12.5px;
@@ -85,6 +86,7 @@
 .btn:disabled { background: #c3cad8; cursor: default; }
 .ghost { background: #fff; color: var(--navy); border: 1px solid var(--line); }
 .ghost:hover { background: var(--sky-bg); border-color: var(--sky-dot); }
+.primary { background: var(--navy); color: #fff; border: 1px solid var(--navy); }
 .sm { padding: 7px 13px; font-size: 12.5px; }
 
 .addForm {
@@ -274,6 +276,10 @@
 
 /* ---------- 문의 유입 ---------- */
 .inqSource { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0; }
+.memoForm { display: flex; gap: 7px; margin: 10px 0; }
+.memoForm .input { flex: 1; }
+.memoHint { color: var(--sub); font-size: 11px; margin: -5px 0 10px; }
+@media (max-width: 640px) { .memoForm { flex-direction: column; } }
 .srcTag {
   font-size: 11px;
   font-weight: 700;
@@ -311,6 +317,17 @@
   padding: 6px 12px;
 }
 .summaryItem b { font-weight: 800; margin-left: 2px; }
+.analysisGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.metricCard { border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: #fff; }
+.metricLabel { display: block; color: var(--sub); font-size: 11.5px; }
+.metricValue { display: inline-block; font-size: 24px; margin-top: 5px; }
+.metricRate { color: var(--sky-dot); font-size: 12px; margin-left: 7px; font-weight: 700; }
+.funnel { display: grid; gap: 9px; margin: 14px 0 18px; }
+.funnelRow { display: grid; grid-template-columns: 100px 42px 1fr; align-items: center; gap: 8px; font-size: 12px; }
+.funnelRow span { color: var(--sub); }
+.funnelRow b { text-align: right; }
+.funnelRow i { height: 8px; border-radius: 99px; background: var(--sky-dot); min-width: 2px; }
+@media (max-width: 640px) { .analysisGrid { grid-template-columns: 1fr; } }
 
 .statusPill {
   display: inline-block;
@@ -399,6 +416,7 @@
 }
 .ok { color: var(--ok); font-weight: 800; }
 .no { color: var(--danger); font-weight: 800; }
+.warnText { color: #8a5a00; font-weight: 800; }
 
 /* ---------- 표 ---------- */
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -582,3 +600,26 @@
 .inqActions { display: flex; align-items: center; gap: 10px; }
 .inqForm { display: flex; align-items: center; gap: 6px; }
 .inqForm select { padding: 6px 8px; font-size: 12px; }
+
+/* ---------- 상담 CRM ---------- */
+.consultForm, .actionForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.consultForm label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: var(--sub); }
+.consultForm input, .consultForm select, .consultForm textarea, .actionForm input, .actionForm select { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 8px; font: inherit; background: #fff; }
+.fullField { grid-column: 1 / -1; }
+.consent { grid-column: 1 / -1; display: flex !important; align-items: center; gap: 7px; }
+.consent input { width: auto; }
+.consultList { display: grid; gap: 10px; }
+.consultCard { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.consultHead, .consultActions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.consultHead > :last-child { margin-left: auto; }
+.consultMeta { color: var(--sub); font-size: 12px; margin: 8px 0; }
+.transcript { white-space: pre-wrap; font-size: 13px; line-height: 1.65; background: #fafafa; padding: 10px; border-radius: 7px; max-height: 260px; overflow: auto; }
+.analysisBox { margin-top: 10px; padding: 11px; background: var(--sky-bg); border-radius: 8px; }
+.analysisBox h3 { margin: 0 0 5px; font-size: 13px; }
+.analysisBox p { white-space: pre-wrap; margin: 0; line-height: 1.6; font-size: 13px; }
+.analysisSection { margin-top: 12px; }
+.analysisSection strong { display: block; margin-bottom: 4px; }
+.analysisSection ul { margin: 0; padding-left: 20px; }
+.analysisSection li + li { margin-top: 3px; }
+.actionForm { grid-template-columns: 180px 1fr 150px auto; }
+@media (max-width: 640px) { .consultForm, .actionForm { grid-template-columns: 1fr; } .fullField, .consent { grid-column: auto; } }
