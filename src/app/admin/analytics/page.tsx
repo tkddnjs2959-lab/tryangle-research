@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { getAdminAnalytics, type RankedMetric } from '@/lib/admin-analytics';
+import { getAdminAnalytics, type AnalyticsPeriod, type OperationalAlert, type RankedMetric, type TrendMetric } from '@/lib/admin-analytics';
 import { logout } from '../actions';
 import AdminTabs from '../AdminTabs';
 import styles from '../admin.module.css';
@@ -20,6 +20,17 @@ function MetricCard({ label, value, note, tone }: { label: string; value: string
       <strong className={styles.metricValue}>{value}</strong>
       <span className={styles.metricNote}>{note}</span>
     </article>
+  );
+}
+
+function FunnelStage({ label, value, rate, height, tone }: { label: string; value: string; rate: string; height: number; tone?: 'blue' | 'green' | 'orange' }) {
+  return (
+    <div className={styles.funnelStage}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+      <i className={tone ? styles[`funnelBar_${tone}`] : ''} style={{ height: `${Math.max(height, 12)}px` }} />
+      <small>{rate}</small>
+    </div>
   );
 }
 
@@ -48,10 +59,58 @@ function changeRate(current: number, previous: number) {
   return `${change > 0 ? '+' : ''}${change}%`;
 }
 
-export default async function AnalyticsPage() {
+function TrendChart({ points }: { points: TrendMetric[] }) {
+  const max = Math.max(...points.flatMap((point) => [point.inquiries, point.confirmedEnrollments]), 1);
+  const chartHeight = 120;
+  const chartWidth = 680;
+  const left = 34;
+  const right = 10;
+  const top = 10;
+  const bottom = 24;
+  const innerWidth = chartWidth - left - right;
+  const innerHeight = chartHeight - top - bottom;
+  const x = (index: number) => left + (points.length <= 1 ? 0 : (index / (points.length - 1)) * innerWidth);
+  const y = (value: number) => top + innerHeight - (value / max) * innerHeight;
+  const inquiryPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.inquiries)}`).join(' ');
+  const enrollmentPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.confirmedEnrollments)}`).join(' ');
+  const labelIndexes = points.length > 8 ? [0, 3, 6, 9, 13] : points.map((_, index) => index);
+  return (
+    <div className={styles.trendChartWrap}>
+      <svg className={styles.trendChart} viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="최근 14일 문의와 확정 등록 추이">
+        {[0, 0.5, 1].map((ratio) => <line key={ratio} className={styles.trendGrid} x1={left} x2={chartWidth - right} y1={y(max * ratio)} y2={y(max * ratio)} />)}
+        <path className={styles.trendArea} d={`${inquiryPath} L ${x(points.length - 1)} ${top + innerHeight} L ${x(0)} ${top + innerHeight} Z`} />
+        <path className={styles.trendLine} d={inquiryPath} />
+        <path className={styles.trendLineSecondary} d={enrollmentPath} />
+        {points.map((point, index) => <circle key={point.date} className={styles.trendDot} cx={x(index)} cy={y(point.inquiries)} r="2.5"><title>{`${point.label} 문의 ${point.inquiries}건`}</title></circle>)}
+        {labelIndexes.map((index) => <text key={points[index].date} className={styles.trendLabel} x={x(index)} y={chartHeight - 5} textAnchor="middle">{points[index].label}</text>)}
+      </svg>
+      <div className={styles.trendLegend}><span><i className={styles.trendLegendInquiry} />문의</span><span><i className={styles.trendLegendEnrollment} />확정 등록</span></div>
+    </div>
+  );
+}
+
+function AlertList({ alerts }: { alerts: OperationalAlert[] }) {
+  const hrefFor = (key: string) => key === 'pending-analyses' || key === 'open-actions' ? '/admin/consultations' : key === 'conversion-drop' ? '/admin/analytics?period=7' : '/admin/inquiries';
+  if (alerts.length === 0) return <p className={styles.alertEmpty}>현재 즉시 처리할 운영 알림이 없습니다.</p>;
+  return (
+    <div className={styles.alertList} aria-label="운영 알림 목록">
+      {alerts.slice(0, 5).map((alert) => (
+        <div key={alert.key} className={`${styles.alertItem} ${styles[`alertItem_${alert.severity}`]}`}>
+          <div><strong>{alert.title}</strong><span>{alert.detail}</span></div>
+          <a href={hrefFor(alert.key)}>확인 →</a>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default async function AnalyticsPage({ searchParams }: { searchParams?: Promise<{ period?: string; channel?: string; campaign?: string }> }) {
   if (!(await isLoggedIn())) redirect('/admin/login');
-  const data = await getAdminAnalytics();
+  const params = await searchParams;
+  const period: AnalyticsPeriod = params?.period === '7' || params?.period === 'month' ? params.period : '30';
+  const data = await getAdminAnalytics({ period, channel: params?.channel, campaign: params?.campaign });
   const { kpis } = data;
+  const view = data.selected;
 
   return (
     <main className={styles.page}>
@@ -69,24 +128,44 @@ export default async function AnalyticsPage() {
       <section className={styles.dashboardSection}>
         <div className={styles.sectionHead}>
           <div><h2>오늘 먼저 볼 지표</h2><p>후속 조치가 필요한 항목과 현재 전환 흐름을 우선 배치했습니다.</p></div>
+          <form className={styles.analyticsFilters} method="get">
+            <label><span>기간</span><select name="period" defaultValue={data.filters.period}><option value="7">최근 7일</option><option value="30">최근 30일</option><option value="month">이번 달</option></select></label>
+            <label><span>채널</span><select name="channel" defaultValue={data.filters.channel}><option value="">전체 채널</option>{data.filters.channels.map((channel) => <option key={channel} value={channel}>{channel}</option>)}</select></label>
+            <label><span>캠페인</span><select name="campaign" defaultValue={data.filters.campaign}><option value="">전체 캠페인</option>{data.filters.campaigns.map((campaign) => <option key={campaign} value={campaign}>{campaign}</option>)}</select></label>
+            <button className={`${styles.btn} ${styles.sm}`} type="submit">적용</button>
+          </form>
         </div>
-        <div className={styles.metricGrid}>
-          <MetricCard label="전체 문의" value={`${formatNumber.format(kpis.inquiries)}건`} note={`신규 응대 ${kpis.newInquiries}건`} tone={kpis.newInquiries > 0 ? 'alert' : undefined} />
-          <MetricCard label="상담 진행" value={`${formatNumber.format(kpis.consultations)}건`} note={`문의 연결 ${kpis.consultedInquiries}명`} />
-          <MetricCard label="문의→상담 연결률" value={`${kpis.consultationRate}%`} note="문의 ID가 연결된 상담 기준" tone={kpis.consultationRate >= 50 ? 'good' : undefined} />
+        <div className={styles.priorityStrip}>
+          <div><strong>운영 알림 {data.alerts.length}건</strong><span>선택 기간: {data.filters.period === '7' ? '최근 7일' : data.filters.period === 'month' ? '이번 달' : '최근 30일'} · 우선순위가 높은 항목부터 표시합니다.</span></div>
+          <a href="#operational-alerts">알림 보기 ↓</a>
+        </div>
+        <div id="operational-alerts"><AlertList alerts={data.alerts} /></div>
+        <div className={styles.primaryMetricGrid}>
+          <MetricCard label="선택 기간 문의" value={`${formatNumber.format(view.inquiries)}건`} note={`전체 신규 응대 ${kpis.newInquiries}건`} tone={kpis.newInquiries > 0 ? 'alert' : undefined} />
+          <MetricCard label="문의→상담 연결률" value={`${view.consultationRate}%`} note="선택 기간 기준" tone={view.consultationRate >= 50 ? 'good' : undefined} />
+          <MetricCard label="확정 등록" value={`${view.confirmedEnrollments}명`} note={`선택 기간 · 전체 ${kpis.confirmedEnrollments}명`} tone={view.confirmedEnrollments > 0 ? 'good' : undefined} />
+          <MetricCard label="결제 매출" value={`${formatNumber.format(view.paidRevenue)}원`} note={`ROAS ${view.roas === null ? '—' : `${view.roas}배`} · 선택 기간`} />
+        </div>
+        <div className={styles.secondaryMetricGrid}>
+          <MetricCard label="상담 진행" value={`${formatNumber.format(view.consultations)}건`} note="선택 기간 기준" />
           <MetricCard label="AI 분석 커버리지" value={`${kpis.analysisCoverage}%`} note={`${kpis.analyses}/${kpis.consultations}개 상담`} />
           <MetricCard label="승인 대기 분석" value={`${kpis.pendingAnalyses}건`} note="관리자 검토 필요" tone={kpis.pendingAnalyses > 0 ? 'alert' : undefined} />
           <MetricCard label="전환 가능성 높음" value={`${kpis.highIntent}건`} note="AI 분석의 high 신호" tone={kpis.highIntent > 0 ? 'good' : undefined} />
-          <MetricCard label="확정 등록" value={`${kpis.confirmedEnrollments}명`} note={`전체 등록 ${kpis.enrollments}건`} tone={kpis.confirmedEnrollments > 0 ? 'good' : undefined} />
-          <MetricCard label="결제 매출" value={`${formatNumber.format(kpis.paidRevenue)}원`} note="결제완료−환불" />
-          <MetricCard label="이번 달 광고비" value={`${formatNumber.format(kpis.adSpendCurrentMonth)}원`} note="입력된 실제 집행액" />
-          <MetricCard label="이번 달 종합 CPL" value={kpis.cplCurrentMonth === null ? '—' : `${formatNumber.format(kpis.cplCurrentMonth)}원`} note={`이번 달 광고비 ÷ 문의 ${kpis.inquiriesCurrentMonth}건`} />
-          <MetricCard label="이번 달 등록 CPA" value={kpis.cpaCurrentMonth === null ? '—' : `${formatNumber.format(kpis.cpaCurrentMonth)}원`} note={`이번 달 광고비 ÷ 확정 등록 ${kpis.confirmedEnrollmentsCurrentMonth}건`} />
-          <MetricCard label="이번 달 ROAS" value={kpis.roasCurrentMonth === null ? '—' : `${kpis.roasCurrentMonth}배`} note={`이번 달 매출 ${formatNumber.format(kpis.paidRevenueCurrentMonth)}원 ÷ 광고비`} tone={kpis.roasCurrentMonth !== null && kpis.roasCurrentMonth >= 1 ? 'good' : undefined} />
-          <MetricCard label="홈페이지 클릭" value={`${formatNumber.format(kpis.homepageClicks)}회`} note="추적 링크 누적" />
-          <MetricCard label="카카오톡 클릭" value={`${formatNumber.format(kpis.kakaoClicks)}회`} note="추적 링크 누적" />
-          <MetricCard label="활성 수강생" value={`${formatNumber.format(kpis.activeStudents)}명`} note="보관 상태 제외" />
-          <MetricCard label="미완료 후속조치" value={`${kpis.openActions}건`} note="상담 액션 아이템" tone={kpis.openActions > 0 ? 'alert' : undefined} />
+          <MetricCard label="선택 기간 광고비" value={`${formatNumber.format(view.adSpend)}원`} note="입력된 실제 집행액" />
+          <MetricCard label="선택 기간 CPL" value={view.cpl === null ? '—' : `${formatNumber.format(view.cpl)}원`} note={`문의 ${view.inquiries}건 기준`} />
+          <MetricCard label="홈페이지 클릭" value={`${formatNumber.format(view.homepageClicks)}회`} note="선택 기간 추적 링크" />
+          <MetricCard label="카카오톡 클릭" value={`${formatNumber.format(view.kakaoClicks)}회`} note="선택 기간 추적 링크" />
+        </div>
+      </section>
+
+      <section className={styles.dashboardSection}>
+        <div className={styles.sectionHead}><div><h2>고객 전환 퍼널</h2><p>홈페이지 클릭부터 결제까지의 단계별 규모와 전환율입니다.</p></div></div>
+        <div className={styles.funnelVisual}>
+          <FunnelStage label="홈페이지 클릭" value={`${formatNumber.format(view.homepageClicks)}회`} rate="선택 기간 유입" height={72} tone="blue" />
+          <FunnelStage label="상담 문의" value={`${formatNumber.format(view.inquiries)}건`} rate={view.homepageClicks > 0 ? `${Math.round((view.inquiries / view.homepageClicks) * 1000) / 10}%` : '—'} height={58} tone="blue" />
+          <FunnelStage label="상담 진행" value={`${formatNumber.format(view.consultations)}건`} rate={`${view.consultationRate}%`} height={45} tone="green" />
+          <FunnelStage label="확정 등록" value={`${formatNumber.format(view.confirmedEnrollments)}명`} rate={view.consultations > 0 ? `${Math.round((view.confirmedEnrollments / view.consultations) * 1000) / 10}%` : '—'} height={32} tone="green" />
+          <FunnelStage label="결제 완료" value={`${formatNumber.format(view.paidRevenue)}원`} rate={view.confirmedEnrollments > 0 ? '등록 후 매출' : '—'} height={24} tone="orange" />
         </div>
       </section>
 
@@ -115,6 +194,11 @@ export default async function AnalyticsPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className={styles.dashboardSection}>
+        <div className={styles.sectionHead}><div><h2>문의·등록 추이</h2><p>최근 14일의 일별 문의와 확정 등록을 비교합니다.</p></div><span className={styles.sectionHint}>데이터가 쌓일수록 추세가 선명해집니다.</span></div>
+        <TrendChart points={data.trend} />
       </section>
 
       <div className={styles.dashboardColumns}>

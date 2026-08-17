@@ -639,15 +639,44 @@
   margin-bottom: 16px;
 }
 .sectionHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.analyticsFilters { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; gap: 6px; }
+.analyticsFilters label { display: grid; gap: 4px; }
+.analyticsFilters label span { color: var(--sub); font-size: 10px; }
+.analyticsFilters select { min-width: 108px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: #fff; font: inherit; font-size: 11px; }
 .sectionHead h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--ink); }
 .sectionHead p { margin: 5px 0 0; color: var(--sub); font-size: 12.5px; line-height: 1.6; }
 .metricGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.primaryMetricGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.secondaryMetricGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
 .metricCard { display: grid; gap: 7px; min-height: 122px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .metricCard_alert { border-top: 3px solid #d99a00; }
 .metricCard_good { border-top: 3px solid var(--ok); }
 .metricLabel { color: var(--sub); font-size: 12px; font-weight: 700; }
 .metricValue { color: var(--navy); font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
 .metricNote { align-self: end; color: var(--sub); font-size: 11.5px; }
+.priorityStrip { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; margin-bottom: 12px; border-left: 3px solid #d99a00; border-radius: 8px; background: #fff8ec; }
+.priorityStrip div { display: grid; gap: 3px; }
+.priorityStrip strong { color: var(--ink); font-size: 12px; }
+.priorityStrip span { color: var(--sub); font-size: 11px; }
+.priorityStrip a { flex: none; color: var(--navy); font-size: 11px; font-weight: 800; text-decoration: none; }
+.alertList { display: grid; gap: 7px; margin-bottom: 12px; }
+.alertItem { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-left: 3px solid var(--sky-dot); border-radius: 7px; background: var(--sky-bg); }
+.alertItem_high { border-left-color: #c65353; background: #fff4f2; }
+.alertItem_medium { border-left-color: #d99a00; background: #fff8ec; }
+.alertItem_info { border-left-color: var(--sky-dot); }
+.alertItem div { display: grid; gap: 3px; min-width: 0; }
+.alertItem strong { color: var(--ink); font-size: 11.5px; }
+.alertItem span { overflow: hidden; color: var(--sub); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.alertItem a { flex: none; color: var(--navy); font-size: 10.5px; font-weight: 800; text-decoration: none; }
+.alertEmpty { margin: 0 0 12px; padding: 11px 12px; color: var(--sub); background: var(--sky-bg); border-radius: 7px; font-size: 11px; }
+.funnelVisual { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.funnelStage { min-width: 0; }
+.funnelStage strong { display: block; margin-bottom: 5px; color: var(--navy); font-size: 17px; font-variant-numeric: tabular-nums; }
+.funnelStage span { display: block; overflow: hidden; color: var(--sub); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.funnelStage i { display: block; min-height: 10px; margin-top: 7px; border-radius: 5px 5px 2px 2px; background: var(--sky-dot); opacity: .78; }
+.funnelStage i.funnelBar_green { background: var(--ok); }
+.funnelStage i.funnelBar_orange { background: #d99a00; }
+.funnelStage small { display: block; margin-top: 5px; color: var(--sub); font-size: 10px; }
 .dashboardColumns { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
 .insightGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .insightPanel { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-top: 12px; }
@@ -666,6 +695,20 @@
 .metricTable th:first-child, .metricTable td:first-child { text-align: left; }
 .metricTable thead th { color: var(--sub); font-size: 11.5px; }
 .metricTable tbody th { color: var(--ink); font-weight: 700; }
+.sectionHint { flex: none; color: var(--sub); font-size: 11px; }
+.trendChartWrap { width: 100%; }
+.trendChart { display: block; width: 100%; height: auto; min-height: 145px; }
+.trendGrid { stroke: var(--line); stroke-width: 1; }
+.trendArea { fill: var(--sky-bg); }
+.trendLine { fill: none; stroke: var(--sky-dot); stroke-width: 2.5; }
+.trendLineSecondary { fill: none; stroke: var(--ok); stroke-width: 2; }
+.trendDot { fill: var(--sky-dot); }
+.trendLabel { fill: var(--sub); font-size: 10px; }
+.trendLegend { display: flex; gap: 14px; margin-top: 4px; color: var(--sub); font-size: 11px; }
+.trendLegend span { display: inline-flex; align-items: center; gap: 5px; }
+.trendLegend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.trendLegendInquiry { background: var(--sky-dot); }
+.trendLegendEnrollment { background: var(--ok); }
 .referenceBadge { flex: none; color: #7a5a1e; background: #fff8ec; border: 1px solid #f0e0c0; border-radius: 20px; padding: 5px 10px; font-size: 11px; font-weight: 800; }
 .funnelSummary { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 14px; border-radius: 12px; background: var(--sky-bg); }
 .funnelSummary > div { display: grid; gap: 3px; }
@@ -680,15 +723,23 @@
 .integrationSteps span { font-size: 11.5px; line-height: 1.55; color: var(--sub); }
 .dataRule { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--sub); font-size: 12px; line-height: 1.6; }
 @media (max-width: 1000px) {
-  .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metricGrid, .primaryMetricGrid, .secondaryMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboardColumns { grid-template-columns: 1fr; }
   .integrationSteps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 620px) {
-  .metricGrid, .insightGrid, .integrationSteps { grid-template-columns: 1fr; }
+  .metricGrid, .primaryMetricGrid, .secondaryMetricGrid, .insightGrid, .integrationSteps { grid-template-columns: 1fr; }
   .tabs { overflow-x: auto; padding-bottom: 4px; }
   .tab { flex: none; }
   .funnelSummary { align-items: stretch; flex-direction: column; }
   .funnelArrow { transform: rotate(90deg); align-self: flex-start; }
   .funnelSummary small { margin-left: 0; }
+  .analyticsFilters { justify-content: stretch; width: 100%; }
+  .analyticsFilters label { flex: 1 1 30%; }
+  .analyticsFilters select { width: 100%; min-width: 0; }
+  .analyticsFilters .btn { flex: 1 1 100%; }
+  .priorityStrip { align-items: stretch; flex-direction: column; }
+  .alertItem { align-items: flex-start; }
+  .alertItem span { white-space: normal; }
+  .funnelVisual { grid-template-columns: repeat(5, minmax(54px, 1fr)); overflow-x: auto; padding-bottom: 4px; }
 }
