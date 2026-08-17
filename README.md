@@ -476,6 +476,28 @@ npm run dev
   **어드민 화면 실물 확인은 못 했다** — 이 체크아웃에 `.env.local` 이 없어
   service_role 키 없이는 로컬 실행이 안 된다. 배포 후 화면 확인이 필요하다.
 
+### 2026-08-15 — 클로바노트 상담 텍스트 등록 MVP
+
+- 운영 DB에 먼저 적용되어 있던 상담 CRM migration을 저장소로 복구했다.
+  `consultation_sessions`, `consultation_transcripts`, `consultation_analyses`,
+  `consultation_action_items`를 포함한다.
+- `consultation_sessions`에 `inquiry_id`를 추가해 아직 배우로 등록되지 않은
+  홈페이지 문의자도 상담 기록을 연결할 수 있게 했다.
+- 어드민 `/admin/consultations`에서 배우 또는 홈페이지 문의를 선택해
+  클로바노트 텍스트, 상담 일시, 상담 유형을 저장한다.
+- 현재 단계는 원문 보관·검토 단계이며, AI 분석은 승인 가능한 분석 adapter를
+  통해 `OPENAI_API_KEY`가 설정된 서버에서 실행한다. 결과는 `pending`으로
+  저장하고 관리자가 승인 또는 반려한다.
+- 구조화 결과에는 요약, 상담 목적, 요구·장벽·강점, 전환 신호, 위험 신호,
+  후속 조치, 근거 발언을 포함한다. API 요청은 `store: false`로 보낸다.
+- 분석을 승인하면 `next_actions`가 `consultation_action_items`로 자동 변환된다.
+  같은 상담의 같은 제목은 중복 생성하지 않는다. 문의자 상담은 `actor_id` 없이도
+  후속조치를 저장할 수 있다.
+- 상담 원문 테이블은 RLS를 켜고 `anon`·`authenticated` 권한을 회수했다.
+  어드민 서버의 `service_role`만 접근한다.
+- 검증: `npm.cmd run build` 통과. 운영 DB migration `consultation_subjects`,
+  `consultation_privileges` 적용 및 권한 확인 완료.
+
 ## 관련 파일
 
 - `../퍼스널리서치_말풍선툴.html` — Phase 0 로컬 툴.

@@ -6,6 +6,7 @@ import { checkPassword, createSession, destroySession, isLoggedIn } from '@/lib/
 import {
   archiveCoachingStudent,
   createActor,
+  createConsultation,
   createCoachingStudent,
   deleteInquiry,
   deleteResponse,
@@ -17,6 +18,7 @@ import {
   setCohortWeekOpen,
   setCohortWeekTitle,
   setInquiryStatus,
+  setConsultationAnalysisStatus,
   setSurveyLock,
   unlinkCoachingStudent,
   updateCoachingStudentNote,
@@ -32,6 +34,9 @@ import {
   recordFailure,
 } from '@/lib/login-throttle';
 import { db } from '@/lib/supabase';
+import { analyzeConsultation } from '@/lib/consultation-analysis';
+import { createEnrollment, createPayment, type EnrollmentStatus, type PaymentStatus } from '@/lib/funnel-data';
+import { deleteMarketingSpend, saveMarketingSpend } from '@/lib/marketing-data';
 import type { Category, Gender } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
 
@@ -277,6 +282,209 @@ export async function removeInquiry(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   if (id) await deleteInquiry(id);
   revalidatePath('/admin/inquiries');
+}
+
+export async function addEnrollment(formData: FormData) {
+  await requireAdmin();
+  const inquiryId = String(formData.get('inquiryId') ?? '').trim() || null;
+  const actorId = String(formData.get('actorId') ?? '').trim() || null;
+  if (!inquiryId && !actorId) return;
+  const status = String(formData.get('status') ?? 'applied') as EnrollmentStatus;
+  await createEnrollment({
+    inquiryId,
+    actorId,
+    cohort: String(formData.get('cohort') ?? '').trim() || null,
+    productName: String(formData.get('productName') ?? '').trim() || null,
+    amount: Number(formData.get('amount') ?? '') > 0 ? Number(formData.get('amount')) : null,
+    status,
+    enrolledAt: String(formData.get('enrolledAt') ?? '').trim() || null,
+    source: String(formData.get('source') ?? '').trim() || null,
+    medium: String(formData.get('medium') ?? '').trim() || null,
+    campaign: String(formData.get('campaign') ?? '').trim() || null,
+    content: String(formData.get('content') ?? '').trim() || null,
+    note: String(formData.get('note') ?? '').trim() || null,
+  });
+  revalidatePath('/admin/funnel');
+  revalidatePath('/admin/analytics');
+}
+
+export async function addPayment(formData: FormData) {
+  await requireAdmin();
+  const enrollmentId = String(formData.get('enrollmentId') ?? '').trim();
+  const amount = Number(formData.get('amount') ?? 0);
+  if (!enrollmentId || !Number.isFinite(amount) || amount < 0) return;
+  await createPayment({
+    enrollmentId,
+    amount,
+    paidAt: String(formData.get('paidAt') ?? '').trim() || null,
+    status: String(formData.get('status') ?? 'paid') as PaymentStatus,
+    paymentType: String(formData.get('paymentType') ?? '').trim() || null,
+    note: String(formData.get('note') ?? '').trim() || null,
+  });
+  revalidatePath('/admin/funnel');
+  revalidatePath('/admin/analytics');
+}
+
+export async function saveMarketingSpendAction(formData: FormData) {
+  await requireAdmin();
+  const spend = Number(formData.get('spend') ?? 0);
+  const spendDate = String(formData.get('spendDate') ?? '').trim();
+  const platform = String(formData.get('platform') ?? '').trim();
+  if (!spendDate || !platform || !Number.isFinite(spend) || spend < 0) return;
+  const numberOrNull = (key: string) => {
+    const value = Number(formData.get(key) ?? '');
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  };
+  await saveMarketingSpend({
+    id: String(formData.get('id') ?? '').trim() || null,
+    spendDate,
+    platform,
+    accountName: String(formData.get('accountName') ?? '').trim() || null,
+    campaign: String(formData.get('campaign') ?? '').trim() || null,
+    spend,
+    impressions: numberOrNull('impressions'),
+    clicks: numberOrNull('clicks'),
+    note: String(formData.get('note') ?? '').trim() || null,
+  });
+  revalidatePath('/admin/marketing');
+  revalidatePath('/admin/analytics');
+}
+
+export async function removeMarketingSpend(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') ?? '').trim();
+  if (!id) return;
+  await deleteMarketingSpend(id);
+  revalidatePath('/admin/marketing');
+  revalidatePath('/admin/analytics');
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"') {
+      if (quoted && text[i + 1] === '"') { cell += '"'; i += 1; }
+      else quoted = !quoted;
+    } else if (char === ',' && !quoted) { row.push(cell.trim()); cell = ''; }
+    else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && text[i + 1] === '\n') i += 1;
+      row.push(cell.trim()); cell = '';
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+    } else cell += char;
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+export async function importMarketingCsv(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) return;
+  const rows = parseCsv((await file.text()).replace(/^\uFEFF/, ''));
+  if (rows.length < 2) return;
+  const normalize = (value: string) => value.toLowerCase().replace(/[ _-]/g, '');
+  const headers = rows[0].map(normalize);
+  const indexOf = (...names: string[]) => headers.findIndex((header) => names.some((name) => normalize(name) === header));
+  const dateIndex = indexOf('date', 'spend_date', '날짜', '일자');
+  const platformIndex = indexOf('platform', '매체', '플랫폼');
+  const spendIndex = indexOf('spend', 'cost', 'amount', '집행액', '광고비');
+  if (dateIndex < 0 || platformIndex < 0 || spendIndex < 0) return;
+  const valueAt = (row: string[], index: number) => index >= 0 ? row[index]?.trim() ?? '' : '';
+  let imported = 0;
+  for (const row of rows.slice(1, 1001)) {
+    const spend = Number(valueAt(row, spendIndex).replace(/[^0-9.-]/g, ''));
+    const spendDate = valueAt(row, dateIndex).replace(/\./g, '-').replace(/\//g, '-');
+    const platform = valueAt(row, platformIndex);
+    if (!/^\d{4}-\d{1,2}-\d{1,2}$/.test(spendDate) || !platform || !Number.isFinite(spend) || spend < 0) continue;
+    await saveMarketingSpend({
+      id: null,
+      spendDate,
+      platform,
+      accountName: valueAt(row, indexOf('account_name', 'account', '광고계정')) || null,
+      campaign: valueAt(row, indexOf('campaign', 'campaign_name', '캠페인')) || null,
+      spend,
+      impressions: Number(valueAt(row, indexOf('impressions', '노출')).replace(/[^0-9.-]/g, '')) || null,
+      clicks: Number(valueAt(row, indexOf('clicks', '클릭')).replace(/[^0-9.-]/g, '')) || null,
+      note: valueAt(row, indexOf('note', '메모')) || null,
+    });
+    imported += 1;
+  }
+  revalidatePath('/admin/marketing');
+  revalidatePath('/admin/analytics');
+  redirect(`/admin/marketing?imported=${imported}`);
+}
+
+export async function importConsultation(formData: FormData) {
+  await requireAdmin();
+
+  const target = String(formData.get('targetId') ?? '').trim();
+  const [targetType, targetId] = target.split(':');
+  const consultedAt = String(formData.get('consultedAt') ?? '').trim();
+  const consultationType = String(formData.get('consultationType') ?? 'general').trim();
+  const transcript = String(formData.get('transcript') ?? '').trim();
+  const consent = formData.get('consent') === 'on';
+  const parsedDate = new Date(consultedAt);
+  if (
+    !targetId ||
+    !['actor', 'inquiry'].includes(targetType) ||
+    !consultedAt ||
+    Number.isNaN(parsedDate.getTime()) ||
+    !transcript ||
+    !consent ||
+    transcript.length > 200_000
+  ) return;
+
+  const sessionId = await createConsultation({
+    actorId: targetType === 'actor' ? targetId : null,
+    inquiryId: targetType === 'inquiry' ? targetId : null,
+    consultedAt: parsedDate.toISOString(),
+    consultationType: consultationType || 'general',
+    source: 'clova_note_import',
+    transcript,
+    consentObtained: consent,
+  });
+  await audit({
+    action: 'consultation_import',
+    targetType: 'consultation_session',
+    targetId: sessionId,
+    summary: '클로바노트 상담 텍스트를 등록했습니다.',
+    detail: { targetType, targetId },
+  });
+  try {
+    await analyzeConsultation(sessionId);
+  } catch (error) {
+    console.error('consultation auto-analysis failed', error);
+    redirect('/admin/consultations?analysis_error=unavailable');
+  }
+  revalidatePath('/admin/consultations');
+}
+
+export async function runConsultationAnalysis(formData: FormData) {
+  await requireAdmin();
+  const sessionId = String(formData.get('sessionId') ?? '').trim();
+  if (!sessionId) return;
+  try {
+    await analyzeConsultation(sessionId);
+  } catch (error) {
+    console.error('상담 분석 실패', error);
+    redirect('/admin/consultations?analysis_error=unavailable');
+  }
+  revalidatePath('/admin/consultations');
+}
+
+export async function reviewConsultationAnalysis(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('analysisId') ?? '').trim();
+  const status = String(formData.get('status') ?? '') as 'approved' | 'rejected';
+  if (!id || !['approved', 'rejected'].includes(status)) return;
+  await setConsultationAnalysisStatus(id, status);
+  revalidatePath('/admin/consultations');
 }
 
 export async function addCoachingStudent(_prev: string | null, form: FormData): Promise<string | null> {

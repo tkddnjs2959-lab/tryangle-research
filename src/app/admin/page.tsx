@@ -90,6 +90,18 @@ export default async function Page({
 
       <AdminTabs active="class" />
 
+      <section className={styles.adminHub}>
+        <div>
+          <strong>운영 데이터 센터</strong>
+          <p>문의·상담·AI 분석·광고비·등록·결제를 한 화면에서 확인합니다.</p>
+        </div>
+        <div className={styles.adminHubActions}>
+          <Link href="/admin/analytics" className={`${styles.btn} ${styles.sm}`}>통합 대시보드</Link>
+          <Link href="/admin/marketing" className={`${styles.btn} ${styles.ghost} ${styles.sm}`}>광고비 입력</Link>
+          <Link href="/admin/funnel" className={`${styles.btn} ${styles.ghost} ${styles.sm}`}>등록·결제</Link>
+        </div>
+      </section>
+
       <form className={styles.searchForm} action="/admin" method="get">
         <input
           className={styles.searchInput}
