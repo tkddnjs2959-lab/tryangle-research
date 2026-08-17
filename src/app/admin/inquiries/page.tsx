@@ -5,6 +5,7 @@ import { listInquiries, type InquiryStatus } from '@/lib/admin-data';
 import { changeInquiryStatus, removeInquiry } from '../actions';
 import ConfirmButton from '../ConfirmButton';
 import styles from '../admin.module.css';
+import AdminTabs from '../AdminTabs';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '상담 문의 · 어드민', robots: { index: false, follow: false } };
@@ -41,7 +42,10 @@ export default async function Page() {
           <h1 className={styles.h1}>상담 문의</h1>
           <div className={styles.meta}>홈페이지 문의 폼으로 들어온 내용입니다</div>
         </div>
+        <div className={styles.topbarActions}><a href="/api/admin/inquiries/export" className={`${styles.btn} ${styles.ghost}`}>CSV 내보내기</a></div>
       </header>
+
+      <AdminTabs active="inquiries" />
 
       {sourceRank.length > 0 && (
         <section className={styles.block}>

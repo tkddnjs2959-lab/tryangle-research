@@ -92,6 +92,27 @@
   grid-template-columns: 1.3fr 1fr 1fr 1fr auto;
   gap: 8px;
 }
+
+.consultForm { display: grid; gap: 10px; }
+.consultGrid { display: grid; grid-template-columns: 1.7fr 1.2fr 1.4fr; gap: 8px; }
+.consultTextarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font: inherit; line-height: 1.65; min-height: 180px; }
+.consultTextarea:focus { outline: none; border-color: var(--sky-dot); }
+.consultDropzone { display: grid; gap: 5px; width: 100%; border: 1px dashed var(--sky-dot); border-radius: 10px; padding: 16px; background: var(--sky-bg, #f2f8fc); color: var(--navy); text-align: left; cursor: pointer; }
+.consultDropzone span { color: var(--sub); font-size: 12px; }
+.consultDropzoneActive { border-color: var(--navy); background: #e8f3fa; }
+.consultList { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.consultItem { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 12px; }
+.consultPreview { white-space: pre-wrap; color: var(--ink); font-size: 13px; line-height: 1.65; margin: 10px 0 0; max-height: 150px; overflow: hidden; }
+.consultMeta { font-size: 12px; color: var(--sub); margin-top: 8px; }
+.consultActions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.consultActions form { margin: 0; }
+.consultAnalysis { white-space: pre-wrap; background: #f5f8fc; border-radius: 8px; padding: 10px; font-size: 13px; line-height: 1.6; margin: 10px 0 0; }
+.consentCheck { display: flex; gap: 8px; align-items: center; color: var(--sub); font-size: 12.5px; }
+.actionList { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.actionList li { display: grid; gap: 3px; border-left: 3px solid var(--sky-dot); padding: 7px 10px; background: #f7faff; font-size: 12.5px; }
+.actionList span { color: var(--sub); line-height: 1.5; }
+.actionList em { color: var(--sub); font-size: 11px; font-style: normal; }
+@media (max-width: 760px) { .consultGrid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 760px) { .addForm { grid-template-columns: 1fr 1fr; } }
 
 /* ---------- 로그인 ---------- */
@@ -126,6 +147,11 @@
 }
 .tab:hover { border-color: var(--sky-dot); }
 .tabOn { background: var(--navy); border-color: var(--navy); color: #fff; }
+.adminHub { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--sky-dot); border-radius: 12px; background: var(--sky-bg); }
+.adminHub strong { color: var(--navy); font-size: 13px; }
+.adminHub p { margin: 3px 0 0; color: var(--sub); font-size: 12px; }
+.adminHubActions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 700px) { .adminHub { align-items: stretch; flex-direction: column; } .adminHubActions { justify-content: flex-start; } }
 
 /* ---------- 기수 그룹 ---------- */
 .cohortGroup { margin-bottom: 26px; }
@@ -582,3 +608,87 @@
 .inqActions { display: flex; align-items: center; gap: 10px; }
 .inqForm { display: flex; align-items: center; gap: 6px; }
 .inqForm select { padding: 6px 8px; font-size: 12px; }
+
+/* ---------- 등록·결제 퍼널 ---------- */
+.funnelForm { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.funnelForm .btn { grid-column: span 1; }
+.funnelList { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.funnelItem { border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: #fff; }
+.paymentForm { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.2fr auto; gap: 7px; margin-top: 10px; }
+.paymentHistory { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.paymentHistory span { padding: 4px 8px; border-radius: 6px; background: var(--sky-bg); color: var(--sub); font-size: 11.5px; }
+.spendForm { display: grid; grid-template-columns: 1fr 1fr 1.1fr 1.2fr 1fr 0.9fr 0.8fr 1.3fr auto; gap: 7px; align-items: center; }
+.spendList { display: grid; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.spendList li { position: relative; border: 1px solid var(--line); border-radius: 10px; padding: 12px 40px 12px 12px; background: #fff; }
+.spendList li > form:last-child { position: absolute; top: 12px; right: 12px; }
+.csvForm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.strategyGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.strategyGrid > div { display: grid; gap: 8px; padding: 13px; border-radius: 10px; background: var(--sky-bg); }
+.strategyGrid b { font-size: 12.5px; color: var(--navy); }
+.strategyGrid span, .strategyGrid code { color: var(--sub); font-size: 11.5px; line-height: 1.55; overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .spendForm { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .funnelForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .paymentForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .strategyGrid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .funnelForm, .paymentForm { grid-template-columns: 1fr; } }
+
+/* ---------- 통합 분석 대시보드 ---------- */
+.dashboardSection {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.sectionHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.sectionHead h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--ink); }
+.sectionHead p { margin: 5px 0 0; color: var(--sub); font-size: 12.5px; line-height: 1.6; }
+.metricGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.metricCard { display: grid; gap: 7px; min-height: 122px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.metricCard_alert { border-top: 3px solid #d99a00; }
+.metricCard_good { border-top: 3px solid var(--ok); }
+.metricLabel { color: var(--sub); font-size: 12px; font-weight: 700; }
+.metricValue { color: var(--navy); font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+.metricNote { align-self: end; color: var(--sub); font-size: 11.5px; }
+.dashboardColumns { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+.insightGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.insightPanel { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-top: 12px; }
+.insightGrid .insightPanel { margin-top: 0; }
+.insightTitle { margin: 0 0 12px; font-size: 13px; font-weight: 800; }
+.insightEmpty { margin: 0; padding: 18px 0; color: var(--sub); font-size: 12px; text-align: center; }
+.rankList { display: grid; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.rankHead { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.rankHead span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rankHead b { flex: none; color: var(--sub); font-size: 11px; }
+.rankTrack { height: 5px; margin-top: 5px; overflow: hidden; border-radius: 10px; background: var(--line); }
+.rankTrack i { display: block; height: 100%; border-radius: inherit; background: var(--sky-dot); }
+.tableWrap { width: 100%; overflow-x: auto; }
+.metricTable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.metricTable th, .metricTable td { padding: 10px 9px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.metricTable th:first-child, .metricTable td:first-child { text-align: left; }
+.metricTable thead th { color: var(--sub); font-size: 11.5px; }
+.metricTable tbody th { color: var(--ink); font-weight: 700; }
+.referenceBadge { flex: none; color: #7a5a1e; background: #fff8ec; border: 1px solid #f0e0c0; border-radius: 20px; padding: 5px 10px; font-size: 11px; font-weight: 800; }
+.funnelSummary { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 14px; border-radius: 12px; background: var(--sky-bg); }
+.funnelSummary > div { display: grid; gap: 3px; }
+.funnelSummary span { color: var(--sub); font-size: 11.5px; }
+.funnelSummary strong { color: var(--navy); font-size: 21px; }
+.funnelSummary small { margin-left: auto; color: var(--sub); }
+.funnelArrow { font-size: 18px !important; color: var(--sky-dot) !important; }
+.integrationSection { border-color: var(--sky-dot); }
+.integrationSteps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 0; list-style: none; }
+.integrationSteps li { display: grid; gap: 7px; padding: 13px; border-radius: 10px; background: var(--sky-bg); }
+.integrationSteps b { font-size: 12.5px; color: var(--navy); }
+.integrationSteps span { font-size: 11.5px; line-height: 1.55; color: var(--sub); }
+.dataRule { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--sub); font-size: 12px; line-height: 1.6; }
+@media (max-width: 1000px) {
+  .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboardColumns { grid-template-columns: 1fr; }
+  .integrationSteps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .metricGrid, .insightGrid, .integrationSteps { grid-template-columns: 1fr; }
+  .tabs { overflow-x: auto; padding-bottom: 4px; }
+  .tab { flex: none; }
+  .funnelSummary { align-items: stretch; flex-direction: column; }
+  .funnelArrow { transform: rotate(90deg); align-self: flex-start; }
+  .funnelSummary small { margin-left: 0; }
+}

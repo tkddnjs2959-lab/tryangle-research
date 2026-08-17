@@ -526,6 +526,237 @@ export async function deleteInquiry(id: string) {
 }
 
 // ---------------------------------------------------------------------
+// 상담 기록 · 클로바노트 텍스트
+// ---------------------------------------------------------------------
+export type ConsultationRow = {
+  id: string;
+  actorId: string | null;
+  inquiryId: string | null;
+  consultedAt: string;
+  consultationType: string;
+  source: string;
+  status: string;
+  transcript: string | null;
+  consentObtainedAt: string | null;
+  analysisId: string | null;
+  analysisStatus: string | null;
+  analysisSummary: string | null;
+  analysisResult: unknown | null;
+  actionItems: { id: string; title: string; description: string | null; assignee: string | null; dueAt: string | null; status: string }[];
+};
+
+export async function listConsultations(): Promise<ConsultationRow[]> {
+  const supabase = db();
+  const [
+    { data: sessions, error: sessionError },
+    { data: transcripts, error: transcriptError },
+    { data: analyses, error: analysisError },
+    { data: actionItems, error: actionItemsError },
+  ] =
+    await Promise.all([
+      supabase
+        .from('consultation_sessions')
+        .select('id, actor_id, inquiry_id, consulted_at, consultation_type, source, status, consent_obtained_at')
+        .order('consulted_at', { ascending: false }),
+      supabase
+        .from('consultation_transcripts')
+        .select('session_id, full_text, created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('consultation_analyses')
+        .select('id, session_id, status, summary, structured_result, created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('consultation_action_items')
+        .select('id, session_id, title, description, assignee, due_at, status, created_at')
+        .order('created_at', { ascending: true }),
+    ]);
+  if (sessionError) throw new Error(sessionError.message);
+  if (transcriptError) throw new Error(transcriptError.message);
+  if (analysisError) throw new Error(analysisError.message);
+  if (actionItemsError) throw new Error(actionItemsError.message);
+
+  const transcriptBySession = new Map<string, string>();
+  for (const row of transcripts ?? []) {
+    if (!transcriptBySession.has(row.session_id as string)) {
+      transcriptBySession.set(row.session_id as string, row.full_text as string);
+    }
+  }
+  const analysisBySession = new Map<string, Record<string, unknown>>();
+  for (const row of analyses ?? []) {
+    if (!analysisBySession.has(row.session_id as string)) analysisBySession.set(row.session_id as string, row);
+  }
+  const actionsBySession = new Map<string, ConsultationRow['actionItems']>();
+  for (const row of actionItems ?? []) {
+    const list = actionsBySession.get(row.session_id as string) ?? [];
+    list.push({
+      id: row.id as string,
+      title: row.title as string,
+      description: (row.description as string | null) ?? null,
+      assignee: (row.assignee as string | null) ?? null,
+      dueAt: (row.due_at as string | null) ?? null,
+      status: row.status as string,
+    });
+    actionsBySession.set(row.session_id as string, list);
+  }
+
+  return (sessions ?? []).map((row) => ({
+    id: row.id as string,
+    actorId: (row.actor_id as string | null) ?? null,
+    inquiryId: (row.inquiry_id as string | null) ?? null,
+    consultedAt: row.consulted_at as string,
+    consultationType: row.consultation_type as string,
+    source: row.source as string,
+    status: row.status as string,
+    transcript: transcriptBySession.get(row.id as string) ?? null,
+    consentObtainedAt: (row.consent_obtained_at as string | null) ?? null,
+    analysisId: (analysisBySession.get(row.id as string)?.id as string | undefined) ?? null,
+    analysisStatus: (analysisBySession.get(row.id as string)?.status as string | undefined) ?? null,
+    analysisSummary: (analysisBySession.get(row.id as string)?.summary as string | undefined) ?? null,
+    analysisResult: (analysisBySession.get(row.id as string)?.structured_result as unknown) ?? null,
+    actionItems: actionsBySession.get(row.id as string) ?? [],
+  }));
+}
+
+export async function createConsultation(input: {
+  actorId: string | null;
+  inquiryId: string | null;
+  consultedAt: string;
+  consultationType: string;
+  source: 'manual' | 'clova_note_import';
+  transcript: string;
+  consentObtained: boolean;
+}) {
+  const supabase = db();
+  const { data: session, error: sessionError } = await supabase
+    .from('consultation_sessions')
+    .insert({
+      actor_id: input.actorId,
+      inquiry_id: input.inquiryId,
+      consulted_at: input.consultedAt,
+      consultation_type: input.consultationType,
+      source: input.source,
+      status: 'draft',
+      consent_obtained_at: input.consentObtained ? new Date().toISOString() : null,
+    })
+    .select('id')
+    .single();
+  if (sessionError) throw new Error(sessionError.message);
+
+  const { error: transcriptError } = await supabase.from('consultation_transcripts').insert({
+    session_id: session.id,
+    full_text: input.transcript,
+    language: 'ko-KR',
+    stt_provider: input.source === 'clova_note_import' ? 'clova_note' : null,
+  });
+  if (transcriptError) {
+    await supabase.from('consultation_sessions').delete().eq('id', session.id);
+    throw new Error(transcriptError.message);
+  }
+  return session.id as string;
+}
+
+export async function getConsultationForAnalysis(sessionId: string) {
+  const { data: session, error: sessionError } = await db()
+    .from('consultation_sessions')
+    .select('id, consent_obtained_at')
+    .eq('id', sessionId)
+    .single();
+  if (sessionError) throw new Error(sessionError.message);
+  const { data: transcript, error: transcriptError } = await db()
+    .from('consultation_transcripts')
+    .select('full_text')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (transcriptError) throw new Error(transcriptError.message);
+  return { session, transcript };
+}
+
+export async function saveConsultationAnalysis(input: {
+  sessionId: string;
+  model: string;
+  promptVersion: string;
+  summary: string;
+  structuredResult: unknown;
+  inputHash: string;
+  tokenUsage: unknown;
+}) {
+  const { data, error } = await db()
+    .from('consultation_analyses')
+    .insert({
+      session_id: input.sessionId,
+      model: input.model,
+      prompt_version: input.promptVersion,
+      summary: input.summary,
+      structured_result: input.structuredResult,
+      input_hash: input.inputHash,
+      token_usage: input.tokenUsage,
+      status: 'pending',
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  await db().from('consultation_sessions').update({ status: 'reviewed', updated_at: new Date().toISOString() }).eq('id', input.sessionId);
+  return data.id as string;
+}
+
+export async function setConsultationAnalysisStatus(id: string, status: 'approved' | 'rejected') {
+  const supabase = db();
+  const { data: analysis, error: analysisError } = await supabase
+    .from('consultation_analyses')
+    .select('id, session_id, structured_result')
+    .eq('id', id)
+    .single();
+  if (analysisError) throw new Error(analysisError.message);
+
+  const { error } = await supabase
+    .from('consultation_analyses')
+    .update({ status, reviewed_at: new Date().toISOString(), reviewed_by: 'admin' })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+
+  if (status !== 'approved') return;
+
+  const { data: session, error: sessionError } = await supabase
+    .from('consultation_sessions')
+    .select('actor_id')
+    .eq('id', analysis.session_id)
+    .single();
+  if (sessionError) throw new Error(sessionError.message);
+
+  const result = (analysis.structured_result ?? {}) as { next_actions?: unknown };
+  const nextActions = Array.isArray(result.next_actions) ? result.next_actions : [];
+  const { data: existing, error: existingError } = await supabase
+    .from('consultation_action_items')
+    .select('title')
+    .eq('session_id', analysis.session_id);
+  if (existingError) throw new Error(existingError.message);
+  const existingTitles = new Set((existing ?? []).map((row) => String(row.title)));
+  const rows = nextActions.flatMap((raw) => {
+    const item = raw as Record<string, unknown>;
+    const title = String(item.title ?? '').trim();
+    if (!title || existingTitles.has(title)) return [];
+    const rawDue = String(item.due_date ?? '').trim();
+    const due = rawDue && !Number.isNaN(new Date(rawDue).getTime()) ? new Date(rawDue).toISOString() : null;
+    return [{
+      session_id: analysis.session_id,
+      actor_id: session.actor_id ?? null,
+      title,
+      description: String(item.description ?? '').trim() || null,
+      assignee: String(item.assignee ?? '').trim() || null,
+      due_at: due,
+      status: 'todo',
+    }];
+  });
+  if (rows.length) {
+    const { error: insertError } = await supabase.from('consultation_action_items').insert(rows);
+    if (insertError) throw new Error(insertError.message);
+  }
+}
+
+// ---------------------------------------------------------------------
 // 1:1 매체연기 코칭 — 퍼스널 리서치(actors)와 별개 트랙
 // ---------------------------------------------------------------------
 export type CoachingStudentRow = {

@@ -1,4 +1,6 @@
 import { getProgressByToken } from '@/lib/research';
+import { getActorSession } from '@/lib/actor-session';
+import { getActorAccountByProgressToken } from '@/lib/actor-account';
 import { AUDIENCE, CATEGORY_LABEL } from '@/lib/types';
 import ShareBox from './ShareBox';
 import styles from './page.module.css';
@@ -29,6 +31,8 @@ export default async function Page({ params }: { params: Promise<{ token: string
 
   const self = p.surveys.find((s) => s.type === 'self');
   const outgoing = p.surveys.filter((s) => s.type !== 'self');
+  const actorSession = await getActorSession();
+  const actorAccount = actorSession ? await getActorAccountByProgressToken(token) : null;
 
   return (
     <main className={styles.page}>
@@ -73,6 +77,14 @@ export default async function Page({ params }: { params: Promise<{ token: string
           )}
         </div>
       </section>
+
+      {actorSession?.actorId === actorAccount?.id && (
+        <section className={styles.block}>
+          <h2 className={styles.blockTitle}>수강료 결제</h2>
+          <p className={styles.blockHint}>담당자가 등록한 수강 과정과 금액을 확인한 뒤 결제할 수 있습니다.</p>
+          <a className={styles.kakaoBtn} href="/checkout">결제 화면 열기</a>
+        </section>
+      )}
 
       <ShareBox actorName={p.actorName} surveys={outgoing} />
 
