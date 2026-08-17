@@ -16,6 +16,7 @@ export type EnrollmentRow = {
   source: string | null;
   medium: string | null;
   campaign: string | null;
+  content: string | null;
   note: string | null;
   createdAt: string;
   payments: PaymentRow[];
@@ -35,7 +36,7 @@ export type PaymentRow = {
 export async function listFunnelRecords(): Promise<EnrollmentRow[]> {
   const client = db();
   const [{ data: enrollments, error: enrollmentError }, { data: payments, error: paymentError }] = await Promise.all([
-    client.from('enrollments').select('id, inquiry_id, actor_id, cohort, product_name, amount, status, enrolled_at, source, medium, campaign, note, created_at').order('created_at', { ascending: false }),
+    client.from('enrollments').select('id, inquiry_id, actor_id, cohort, product_name, amount, status, enrolled_at, source, medium, campaign, content, note, created_at').order('created_at', { ascending: false }),
     client.from('payments').select('id, enrollment_id, paid_at, amount, currency, status, payment_type, note').order('created_at', { ascending: false }),
   ]);
   if (enrollmentError) throw new Error(enrollmentError.message);
@@ -70,6 +71,7 @@ export async function listFunnelRecords(): Promise<EnrollmentRow[]> {
     source: row.source as string | null,
     medium: row.medium as string | null,
     campaign: row.campaign as string | null,
+    content: row.content as string | null,
     note: row.note as string | null,
     createdAt: row.created_at as string,
     payments: paymentsByEnrollment.get(row.id as string) ?? [],
@@ -87,8 +89,25 @@ export async function createEnrollment(input: {
   source: string | null;
   medium: string | null;
   campaign: string | null;
+  content?: string | null;
   note: string | null;
 }) {
+  let source = input.source;
+  let medium = input.medium;
+  let campaign = input.campaign;
+  let content = input.content ?? null;
+  if (input.inquiryId && (!source || !medium || !campaign || !content)) {
+    const { data: inquiry, error: inquiryError } = await db()
+      .from('inquiries')
+      .select('source, medium, campaign, content')
+      .eq('id', input.inquiryId)
+      .maybeSingle();
+    if (inquiryError) throw new Error(inquiryError.message);
+    source = source || (inquiry?.source as string | null) || null;
+    medium = medium || (inquiry?.medium as string | null) || null;
+    campaign = campaign || (inquiry?.campaign as string | null) || null;
+    content = content || (inquiry?.content as string | null) || null;
+  }
   const { data, error } = await db().from('enrollments').insert({
     inquiry_id: input.inquiryId,
     actor_id: input.actorId,
@@ -97,9 +116,10 @@ export async function createEnrollment(input: {
     amount: input.amount,
     status: input.status,
     enrolled_at: input.enrolledAt,
-    source: input.source,
-    medium: input.medium,
-    campaign: input.campaign,
+    source,
+    medium,
+    campaign,
+    content,
     note: input.note,
   }).select('id').single();
   if (error) throw new Error(error.message);

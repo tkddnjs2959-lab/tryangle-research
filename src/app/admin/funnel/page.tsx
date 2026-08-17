@@ -23,7 +23,7 @@ export default async function FunnelPage() {
     <AdminTabs active="funnel" />
     <section className={styles.block}>
       <h2 className={styles.blockTitle}>수강등록 연결</h2>
-      <p className={styles.blockHint}>문의 또는 배우 중 하나를 선택해 등록 상태와 유입 정보를 저장합니다. 이름이 같아도 ID 기준으로 연결됩니다.</p>
+      <p className={styles.blockHint}>문의 또는 배우 중 하나를 선택해 등록 상태와 유입 정보를 저장합니다. 문의를 선택하면 비어 있는 유입정보가 문의 기록에서 자동으로 상속됩니다. 이름이 같아도 ID 기준으로 연결됩니다.</p>
       <form action={addEnrollment} className={styles.funnelForm}>
         <select className={styles.input} name="inquiryId" defaultValue=""><option value="">문의 선택 (선택)</option>{inquiries.filter((item) => item.status !== 'archived').map((item) => <option key={item.id} value={item.id}>{item.name} · {item.source}</option>)}</select>
         <select className={styles.input} name="actorId" defaultValue=""><option value="">배우 선택 (선택)</option>{actors.filter((item) => item.status !== 'archived').map((item) => <option key={item.id} value={item.id}>{item.name}{item.cohort ? ` · ${item.cohort}` : ''}</option>)}</select>
@@ -35,6 +35,7 @@ export default async function FunnelPage() {
         <input className={styles.input} name="source" placeholder="source" />
         <input className={styles.input} name="medium" placeholder="medium" />
         <input className={styles.input} name="campaign" placeholder="campaign" />
+        <input className={styles.input} name="content" placeholder="content" />
         <input className={styles.input} name="note" placeholder="메모" />
         <button className={styles.btn} type="submit">등록 연결 저장</button>
       </form>

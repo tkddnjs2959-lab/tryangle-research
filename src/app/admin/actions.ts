@@ -301,6 +301,7 @@ export async function addEnrollment(formData: FormData) {
     source: String(formData.get('source') ?? '').trim() || null,
     medium: String(formData.get('medium') ?? '').trim() || null,
     campaign: String(formData.get('campaign') ?? '').trim() || null,
+    content: String(formData.get('content') ?? '').trim() || null,
     note: String(formData.get('note') ?? '').trim() || null,
   });
   revalidatePath('/admin/funnel');
