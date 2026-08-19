@@ -31,7 +31,9 @@ export type AuditAction =
   | 'kakao_link_failed'
   | 'kakao_unlink'
   | 'kakao_test_message'
-  | 'inquiry_export';
+  | 'inquiry_export'
+  | 'conversion_consultation_complete'
+  | 'conversion_payment_complete';
 
 export type AuditEntry = {
   id: number;

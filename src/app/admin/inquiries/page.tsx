@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
 import { listInquiries, type InquiryStatus } from '@/lib/admin-data';
+import { clarityReport } from '@/lib/clarity-report';
 import { changeInquiryStatus, removeInquiry, saveInquiryMemo } from '../actions';
 import ConfirmButton from '../ConfirmButton';
 import styles from '../admin.module.css';
@@ -174,6 +175,29 @@ export default async function Page({
             </table>
           </>
         )}
+      </section>
+
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>Microsoft Clarity 전체 유입 요약</h2>
+        <p className={styles.blockHint}>
+          {clarityReport.periodLabel}({clarityReport.capturedDate}) 수동 저장 스냅샷입니다. 전체 유입과
+          Instagram 유료광고 유입을 같은 기간으로 비교하며, Clarity 행동 데이터는 상담·결제 전환과 별도입니다.
+        </p>
+        <div className={styles.analysisGrid}>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>전체 세션</span><strong className={styles.metricValue}>{clarityReport.overall.sessions}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>광고 세션</span><strong className={styles.metricValue}>{clarityReport.paid.sessions}</strong><span className={styles.metricRate}>90.2%</span></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>전체 평균 스크롤</span><strong className={styles.metricValue}>{clarityReport.overall.scrollDepth}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>광고 평균 스크롤</span><strong className={styles.metricValue}>{clarityReport.paid.scrollDepth}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>전체 신규 세션</span><strong className={styles.metricValue}>{clarityReport.overall.newSessions}</strong><span className={styles.metricRate}>95.1%</span></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>전체 데드클릭</span><strong className={styles.metricValue}>{clarityReport.overall.deadClickSessions}</strong><span className={styles.metricRate}>{clarityReport.overall.deadClickRate}</span></div>
+        </div>
+        <h3 className={styles.subTitle}>유입 소스</h3>
+        <table className={styles.table}>
+          <thead><tr><th>소스</th><th>세션</th><th>비중</th></tr></thead>
+          <tbody>{clarityReport.sources.map((source) => <tr key={source.label}><td>{source.label}</td><td>{source.sessions}</td><td>{rate(source.sessions, clarityReport.overall.sessions)}</td></tr>)}</tbody>
+        </table>
+        <h3 className={styles.subTitle}>핵심 해석</h3>
+        <ul className={styles.auditList}>{clarityReport.findings.map((finding) => <li key={finding} className={styles.auditItem}>{finding}</li>)}</ul>
       </section>
 
       {sourceRank.length > 0 && (

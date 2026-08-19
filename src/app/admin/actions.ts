@@ -284,7 +284,18 @@ export async function changeInquiryStatus(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get('id') ?? '');
   const status = String(formData.get('status') ?? '') as InquiryStatus;
-  if (id && status) await setInquiryStatus(id, status);
+  if (id && status) {
+    await setInquiryStatus(id, status);
+    if (status === 'done') {
+      await audit({
+        action: 'conversion_consultation_complete',
+        targetType: 'inquiry',
+        targetId: id,
+        summary: '상담 완료 전환을 기록했습니다.',
+        detail: { event: 'consultation_complete' },
+      });
+    }
+  }
   revalidatePath('/admin/inquiries');
 }
 
@@ -434,7 +445,18 @@ export async function saveInquiryMemo(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get('id') ?? '');
   const memo = String(formData.get('memo') ?? '');
-  if (id) await setInquiryMemo(id, memo);
+  if (id) {
+    await setInquiryMemo(id, memo);
+    if (/결제\s*:\s*완료(?:\s|\||$)/i.test(memo)) {
+      await audit({
+        action: 'conversion_payment_complete',
+        targetType: 'inquiry',
+        targetId: id,
+        summary: '결제 완료 전환을 기록했습니다.',
+        detail: { event: 'payment_complete' },
+      });
+    }
+  }
   revalidatePath('/admin/inquiries');
 }
 
