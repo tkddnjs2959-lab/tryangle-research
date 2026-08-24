@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { listInquiries, type InquiryStatus } from '@/lib/admin-data';
+import { getInquirySecuritySummary, listInquiries, type InquiryStatus } from '@/lib/admin-data';
 import { clarityReport } from '@/lib/clarity-report';
 import { changeInquiryStatus, removeInquiry, saveInquiryMemo } from '../actions';
 import ConfirmButton from '../ConfirmButton';
@@ -15,6 +15,26 @@ const STATUS_LABEL: Record<InquiryStatus, string> = {
   contacted: '연락함',
   done: '완료',
   archived: '보류',
+};
+
+const SECURITY_REASON_LABEL: Record<string, string> = {
+  honeypot: '자동 입력 감지',
+  duplicate_contact_30m: '30분 내 동일 번호',
+  ip_10m: 'IP 10분 제한',
+  ip_daily: 'IP 일일 제한',
+  browser_10m: '브라우저 10분 제한',
+  contact_daily: '전화번호 일일 제한',
+  sms_daily_cap: '문자 일일 상한',
+  sms_limit_error: '문자 제한 확인 오류',
+  turnstile_failed: '자동 신청 검증 실패',
+};
+
+const SMS_STATUS_LABEL: Record<string, string> = {
+  sent: '문자 발송 완료',
+  skipped_unconfigured: '문자 미설정',
+  failed: '문자 발송 실패',
+  skipped_cap: '문자 상한으로 생략',
+  limit_error: '문자 제한 확인 오류',
 };
 
 function rate(value: number, total: number) {
@@ -39,7 +59,11 @@ export default async function Page({
 }) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
-  const [allInquiries, params] = await Promise.all([listInquiries(), searchParams]);
+  const [allInquiries, security, params] = await Promise.all([
+    listInquiries(),
+    getInquirySecuritySummary(),
+    searchParams,
+  ]);
   const days = ['7', '30'].includes(params.days ?? '') ? Number(params.days) : null;
   const cutoff = days ? Date.now() - days * 24 * 60 * 60 * 1000 : null;
   const periodInquiries = cutoff
@@ -112,6 +136,24 @@ export default async function Page({
           <div className={styles.meta}>홈페이지 문의 폼으로 들어온 내용입니다</div>
         </div>
       </header>
+
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>최근 24시간 신청 보호</h2>
+        <p className={styles.blockHint}>개인정보 원문은 남기지 않고 암호화된 지문과 차단 사유만 30일간 보관합니다.</p>
+        <div className={styles.analysisGrid}>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>차단</span><strong className={styles.metricValue}>{security.blocked}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>중복 처리</span><strong className={styles.metricValue}>{security.duplicates}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>주의 알림</span><strong className={styles.metricValue}>{security.warnings}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>최근 기록</span><strong className={styles.metricValue}>{security.latestAt ? new Date(security.latestAt).toLocaleTimeString('ko-KR') : '-'}</strong></div>
+        </div>
+        {security.byReason.length > 0 && (
+          <div className={styles.summary}>
+            {security.byReason.map(([reason, count]) => (
+              <span key={reason} className={styles.summaryItem}>{SECURITY_REASON_LABEL[reason] ?? reason} <b>{count}</b></span>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>유입·상담 전환 요약</h2>
@@ -296,6 +338,7 @@ function InquiryRow({
       <div className={styles.inqSource}>
         <span className={styles.srcTag}>추적 {q.trackingRef}</span>
         <span className={styles.srcTag}>{q.clarityReady ? 'Clarity 연결 가능' : 'Clarity 미확인'}</span>
+        {q.smsNotificationStatus && <span className={styles.srcTag}>{SMS_STATUS_LABEL[q.smsNotificationStatus] ?? q.smsNotificationStatus}</span>}
         <span className={styles.srcTag}>{q.source || 'unknown'}</span>
         {q.medium && <span className={styles.srcTag}>{q.medium}</span>}
         {q.campaign && <span className={styles.srcTag}>{q.campaign}</span>}

@@ -488,6 +488,7 @@ export type InquiryRow = {
   journeySeconds: number | null;
   ctaClicks: number;
   formStarted: boolean;
+  smsNotificationStatus: string | null;
 };
 
 export async function listInquiries(): Promise<InquiryRow[]> {
@@ -562,8 +563,31 @@ export async function listInquiries(): Promise<InquiryRow[]> {
       journeySeconds,
       ctaClicks: eventNames.filter((name) => name === 'click_consultation_cta').length,
       formStarted: eventNames.includes('form_start'),
+      smsNotificationStatus: meaningful(r.sms_notification_status),
     };
   });
+}
+
+export async function getInquirySecuritySummary() {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await db()
+    .from('inquiry_security_events')
+    .select('outcome, reason, occurred_at')
+    .gte('occurred_at', since)
+    .order('occurred_at', { ascending: false })
+    .limit(500);
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  const byReason = new Map<string, number>();
+  for (const row of rows) byReason.set(row.reason as string, (byReason.get(row.reason as string) ?? 0) + 1);
+  return {
+    blocked: rows.filter((row) => row.outcome === 'blocked').length,
+    duplicates: rows.filter((row) => row.outcome === 'duplicate').length,
+    warnings: rows.filter((row) => row.outcome === 'warning').length,
+    byReason: [...byReason.entries()].sort((a, b) => b[1] - a[1]),
+    latestAt: typeof rows[0]?.occurred_at === 'string' ? rows[0].occurred_at : null,
+  };
 }
 
 export async function countNewInquiries(): Promise<number> {
