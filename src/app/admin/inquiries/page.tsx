@@ -25,6 +25,13 @@ function memoHas(memo: string | null, field: string, value: string) {
   return new RegExp(`${field}\\s*:\\s*${value}(?:\\s|\\||$)`, 'i').test(memo ?? '');
 }
 
+function journeyLabel(seconds: number | null) {
+  if (seconds === null) return '방문 시간 미연결';
+  if (seconds < 60) return `${seconds}초 후 신청`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}분 후 신청`;
+  return `${Math.round(seconds / 3600)}시간 후 신청`;
+}
+
 export default async function Page({
   searchParams,
 }: {
@@ -288,11 +295,21 @@ function InquiryRow({
       </div>
       <div className={styles.inqSource}>
         <span className={styles.srcTag}>추적 {q.trackingRef}</span>
+        <span className={styles.srcTag}>{q.clarityReady ? 'Clarity 연결 가능' : 'Clarity 미확인'}</span>
         <span className={styles.srcTag}>{q.source || 'unknown'}</span>
         {q.medium && <span className={styles.srcTag}>{q.medium}</span>}
         {q.campaign && <span className={styles.srcTag}>{q.campaign}</span>}
         {q.content && <span className={styles.srcTag}>{q.content}</span>}
       </div>
+      <div className={styles.inqSource}>
+        <span className={styles.srcTag}>{q.deviceType || '기기 미확인'}</span>
+        <span className={styles.srcTag}>{q.browserContext || '브라우저 미확인'}</span>
+        <span className={styles.srcTag}>최대 스크롤 {q.maxScroll}%</span>
+        <span className={styles.srcTag}>CTA {q.ctaClicks}회</span>
+        <span className={styles.srcTag}>{q.formStarted ? '폼 입력 확인' : '폼 입력 미기록'}</span>
+        <span className={styles.srcTag}>{journeyLabel(q.journeySeconds)}</span>
+      </div>
+      {q.landingPath && <p className={styles.memoHint}>첫 방문: {q.landingPath}</p>}
       {q.message && <p className={styles.inqMsg}>{q.message}</p>}
       <form action={saveInquiryMemo} className={styles.memoForm}>
         <input type="hidden" name="id" value={q.id} />

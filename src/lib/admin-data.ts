@@ -479,6 +479,15 @@ export type InquiryRow = {
   adminMemo: string | null;
   createdAt: string;
   trackingRef: string;
+  sessionId: string | null;
+  clarityReady: boolean;
+  landingPath: string | null;
+  deviceType: string | null;
+  browserContext: string | null;
+  maxScroll: number;
+  journeySeconds: number | null;
+  ctaClicks: number;
+  formStarted: boolean;
 };
 
 export async function listInquiries(): Promise<InquiryRow[]> {
@@ -491,26 +500,70 @@ export async function listInquiries(): Promise<InquiryRow[]> {
 
   if (error) throw new Error(error.message);
 
+  const sessionIds = [...new Set((data ?? [])
+    .map((row) => typeof row.session_id === 'string' ? row.session_id : null)
+    .filter((id): id is string => Boolean(id)))];
+  const [{ data: sessions }, { data: events }] = sessionIds.length
+    ? await Promise.all([
+      db()
+        .from('analytics_sessions')
+        .select('id, first_seen_at, landing_path, device_type, browser_context, clarity_ready, max_scroll')
+        .in('id', sessionIds),
+      db()
+        .from('analytics_events')
+        .select('session_id, event_name')
+        .in('session_id', sessionIds),
+    ])
+    : [{ data: [] }, { data: [] }];
+
+  const sessionById = new Map((sessions ?? []).map((session) => [session.id as string, session]));
+  const eventsBySession = new Map<string, string[]>();
+  for (const event of events ?? []) {
+    const id = event.session_id as string;
+    const names = eventsBySession.get(id) ?? [];
+    names.push(event.event_name as string);
+    eventsBySession.set(id, names);
+  }
+
   // 값이 'unknown' 이면 유입을 모른다는 뜻이라 없는 것으로 친다.
   const meaningful = (v: unknown): string | null => {
     const s = typeof v === 'string' ? v.trim() : '';
     return s && s !== 'unknown' ? s : null;
   };
 
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    contact: r.contact,
-    message: r.message,
-    source: r.source,
-    medium: meaningful(r.medium),
-    campaign: meaningful(r.campaign),
-    content: meaningful(r.content),
-    status: r.status as InquiryStatus,
-    adminMemo: r.admin_memo,
-    createdAt: r.created_at,
-    trackingRef: createLeadReference(r.id),
-  }));
+  return (data ?? []).map((r) => {
+    const sessionId = typeof r.session_id === 'string' ? r.session_id : null;
+    const session = sessionId ? sessionById.get(sessionId) : null;
+    const eventNames = sessionId ? eventsBySession.get(sessionId) ?? [] : [];
+    const firstSeenAt = typeof session?.first_seen_at === 'string' ? session.first_seen_at : null;
+    const journeySeconds = firstSeenAt && eventNames.length > 0
+      ? Math.max(0, Math.round((new Date(r.created_at).getTime() - new Date(firstSeenAt).getTime()) / 1000))
+      : null;
+
+    return {
+      id: r.id,
+      name: r.name,
+      contact: r.contact,
+      message: r.message,
+      source: r.source,
+      medium: meaningful(r.medium),
+      campaign: meaningful(r.campaign),
+      content: meaningful(r.content),
+      status: r.status as InquiryStatus,
+      adminMemo: r.admin_memo,
+      createdAt: r.created_at,
+      trackingRef: createLeadReference(r.id),
+      sessionId,
+      clarityReady: Boolean(r.clarity_ready || session?.clarity_ready),
+      landingPath: meaningful(session?.landing_path),
+      deviceType: meaningful(session?.device_type),
+      browserContext: meaningful(session?.browser_context),
+      maxScroll: Number(session?.max_scroll ?? 0),
+      journeySeconds,
+      ctaClicks: eventNames.filter((name) => name === 'click_consultation_cta').length,
+      formStarted: eventNames.includes('form_start'),
+    };
+  });
 }
 
 export async function countNewInquiries(): Promise<number> {
