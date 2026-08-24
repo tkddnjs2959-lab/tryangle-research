@@ -287,6 +287,7 @@ function InquiryRow({
         <span className={styles.statusTag}>{STATUS_LABEL[q.status]}</span>
       </div>
       <div className={styles.inqSource}>
+        <span className={styles.srcTag}>추적 {q.trackingRef}</span>
         <span className={styles.srcTag}>{q.source || 'unknown'}</span>
         {q.medium && <span className={styles.srcTag}>{q.medium}</span>}
         {q.campaign && <span className={styles.srcTag}>{q.campaign}</span>}

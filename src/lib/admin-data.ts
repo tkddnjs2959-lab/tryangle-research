@@ -1,5 +1,6 @@
 import 'server-only';
 import { listActorAccounts, type ActorProfile } from './actor-account';
+import { createLeadReference } from './lead-reference';
 import { db } from './supabase';
 import type { Category, Gender } from './types';
 import {
@@ -477,6 +478,7 @@ export type InquiryRow = {
   status: InquiryStatus;
   adminMemo: string | null;
   createdAt: string;
+  trackingRef: string;
 };
 
 export async function listInquiries(): Promise<InquiryRow[]> {
@@ -507,6 +509,7 @@ export async function listInquiries(): Promise<InquiryRow[]> {
     status: r.status as InquiryStatus,
     adminMemo: r.admin_memo,
     createdAt: r.created_at,
+    trackingRef: createLeadReference(r.id),
   }));
 }
 
