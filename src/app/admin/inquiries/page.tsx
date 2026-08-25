@@ -37,7 +37,7 @@ const SECURITY_REASON_LABEL: Record<string, string> = {
   invalid_phone: '비정상 전화번호 요청',
   invalid_field_length: '비정상 입력 길이',
   behavior_risk: '이상행동 주의',
-  analytics_ip_10m: '분석 요청 10분 제한',
+  analytics_ip_1m: '분석 요청 1분 제한',
   analytics_request_too_large: '분석 대용량 요청',
   analytics_invalid_content_type: '분석 요청 형식 오류',
   analytics_cross_site_fetch: '외부 분석 자동 요청',
