@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createHash } from 'node:crypto';
-import { checkAdminId, checkPassword, createSession, destroySession, isLoggedIn, revokeOtherAdminSessions } from '@/lib/admin-auth';
+import { checkAdminId, checkPassword, createSession, destroySession, ensureLegacyAdminAccount, isLoggedIn, revokeOtherAdminSessions } from '@/lib/admin-auth';
 import { isMfaRequired, verifyAdminTotp } from '@/lib/admin-mfa';
 import { getActorAccountById, getActorKakaoRefreshToken, getActorNotificationToken, unlinkActorFromKakao } from '@/lib/actor-account';
 import { refreshKakaoAccessToken, sendKakaoMemo, unlinkKakaoUser } from '@/lib/kakao-login';
@@ -90,8 +90,21 @@ export async function login(_prev: string | null, form: FormData): Promise<strin
 
   if (isMfaRequired() && !process.env.ADMIN_TOTP_SECRET) return '2단계 인증 설정이 완료되지 않아 로그인이 잠겼습니다.';
 
+  const identity = await ensureLegacyAdminAccount(adminId);
+  if (!identity) {
+    await recordFailure(ip);
+    return '로그인 정보가 올바르지 않습니다.';
+  }
+
   await clearFailures(ip);
-  await createSession();
+  await createSession(identity);
+  await audit({
+    action: 'admin_login',
+    targetType: 'admin',
+    targetId: identity.accountId,
+    summary: '관리자가 로그인했습니다.',
+    detail: { provider: identity.authProvider, role: identity.role },
+  });
   redirect('/admin');
 }
 

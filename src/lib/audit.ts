@@ -1,13 +1,12 @@
 import 'server-only';
 import { db } from './supabase';
-import { currentAdminId } from './admin-auth';
+import { currentAdminIdentity } from './admin-auth';
 
 /**
  * 어드민 변경 이력.
  *
  * 되돌리기 어려운 동작이 언제 무엇에 일어났는지 남긴다.
- * 어드민 계정이 하나뿐이라 '누가' 는 아직 남기지 않는다 — 계정을 나누면
- * 그때 컬럼을 추가한다.
+ * 로그인 공급자와 무관하게 허용 목록의 관리자 계정 ID를 남긴다.
  *
  * **기록 실패가 본 작업을 막으면 안 된다.** 로그를 남기려다 주차 공개가
  * 실패하면 본말전도라, 여기서는 예외를 던지지 않고 콘솔에만 남긴다.
@@ -37,7 +36,10 @@ export type AuditAction =
   | 'conversion_payment_complete'
   | 'consultation_transcript_view'
   | 'consultation_transcript_purge'
-  | 'admin_sessions_revoke';
+  | 'admin_login'
+  | 'admin_sessions_revoke'
+  | 'admin_account_add'
+  | 'admin_account_revoke';
 
 export type AuditEntry = {
   id: number;
@@ -56,8 +58,10 @@ export async function audit(input: {
   detail?: unknown;
 }): Promise<void> {
   try {
+    const identity = await currentAdminIdentity();
     const { error } = await db().from('admin_audit_log').insert({
-      admin_id: await currentAdminId(),
+      admin_id: identity?.adminId ?? null,
+      admin_account_id: identity?.accountId ?? null,
       action: input.action,
       target_type: input.targetType ?? null,
       target_id: input.targetId ?? null,
