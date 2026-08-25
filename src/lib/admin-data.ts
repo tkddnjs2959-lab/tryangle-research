@@ -572,7 +572,7 @@ export async function getInquirySecuritySummary() {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await db()
     .from('inquiry_security_events')
-    .select('outcome, reason, occurred_at')
+    .select('event_type, outcome, reason, occurred_at, ip_fingerprint, browser_fingerprint, details')
     .gte('occurred_at', since)
     .order('occurred_at', { ascending: false })
     .limit(500);
@@ -582,11 +582,23 @@ export async function getInquirySecuritySummary() {
   const byReason = new Map<string, number>();
   for (const row of rows) byReason.set(row.reason as string, (byReason.get(row.reason as string) ?? 0) + 1);
   return {
+    total: rows.length,
     blocked: rows.filter((row) => row.outcome === 'blocked').length,
     duplicates: rows.filter((row) => row.outcome === 'duplicate').length,
     warnings: rows.filter((row) => row.outcome === 'warning').length,
+    uniqueIpFingerprints: new Set(rows.map((row) => row.ip_fingerprint).filter(Boolean)).size,
+    uniqueBrowserFingerprints: new Set(rows.map((row) => row.browser_fingerprint).filter(Boolean)).size,
     byReason: [...byReason.entries()].sort((a, b) => b[1] - a[1]),
     latestAt: typeof rows[0]?.occurred_at === 'string' ? rows[0].occurred_at : null,
+    recent: rows.slice(0, 12).map((row) => ({
+      eventType: String(row.event_type ?? ''),
+      outcome: String(row.outcome ?? ''),
+      reason: String(row.reason ?? ''),
+      occurredAt: String(row.occurred_at ?? ''),
+      riskScore: typeof (row.details as Record<string, unknown> | null)?.riskScore === 'number'
+        ? Number((row.details as Record<string, unknown>).riskScore)
+        : null,
+    })),
   };
 }
 

@@ -23,7 +23,27 @@ const SECURITY_REASON_LABEL: Record<string, string> = {
   ip_10m: 'IP 10분 제한',
   ip_daily: 'IP 일일 제한',
   browser_10m: '브라우저 10분 제한',
+  browser_daily: '브라우저 일일 제한',
   contact_daily: '전화번호 일일 제한',
+  payload_daily: '동일 내용 반복 제한',
+  request_ip_1m: '전체 요청 1분 제한',
+  request_ip_hour: '전체 요청 시간당 제한',
+  request_too_large: '비정상적으로 큰 요청',
+  invalid_content_type: '잘못된 요청 형식',
+  cross_site_fetch: '외부 사이트 자동 요청',
+  cross_site_origin: '허용되지 않은 출처',
+  invalid_json: '깨진 요청 데이터',
+  invalid_required_fields: '필수값 누락 요청',
+  invalid_phone: '비정상 전화번호 요청',
+  invalid_field_length: '비정상 입력 길이',
+  behavior_risk: '이상행동 주의',
+  analytics_ip_10m: '분석 요청 10분 제한',
+  analytics_request_too_large: '분석 대용량 요청',
+  analytics_invalid_content_type: '분석 요청 형식 오류',
+  analytics_cross_site_fetch: '외부 분석 자동 요청',
+  analytics_cross_site_origin: '분석 출처 오류',
+  analytics_invalid_json: '분석 데이터 오류',
+  analytics_invalid_event: '허용되지 않은 분석 이벤트',
   sms_daily_cap: '문자 일일 상한',
   sms_limit_error: '문자 제한 확인 오류',
   turnstile_failed: '자동 신청 검증 실패',
@@ -141,9 +161,12 @@ export default async function Page({
         <h2 className={styles.blockTitle}>최근 24시간 신청 보호</h2>
         <p className={styles.blockHint}>개인정보 원문은 남기지 않고 암호화된 지문과 차단 사유만 30일간 보관합니다.</p>
         <div className={styles.analysisGrid}>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>전체 감지</span><strong className={styles.metricValue}>{security.total}</strong></div>
           <div className={styles.metricCard}><span className={styles.metricLabel}>차단</span><strong className={styles.metricValue}>{security.blocked}</strong></div>
           <div className={styles.metricCard}><span className={styles.metricLabel}>중복 처리</span><strong className={styles.metricValue}>{security.duplicates}</strong></div>
           <div className={styles.metricCard}><span className={styles.metricLabel}>주의 알림</span><strong className={styles.metricValue}>{security.warnings}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>감지 IP 수</span><strong className={styles.metricValue}>{security.uniqueIpFingerprints}</strong></div>
+          <div className={styles.metricCard}><span className={styles.metricLabel}>감지 브라우저 수</span><strong className={styles.metricValue}>{security.uniqueBrowserFingerprints}</strong></div>
           <div className={styles.metricCard}><span className={styles.metricLabel}>최근 기록</span><strong className={styles.metricValue}>{security.latestAt ? new Date(security.latestAt).toLocaleTimeString('ko-KR') : '-'}</strong></div>
         </div>
         {security.byReason.length > 0 && (
@@ -152,6 +175,21 @@ export default async function Page({
               <span key={reason} className={styles.summaryItem}>{SECURITY_REASON_LABEL[reason] ?? reason} <b>{count}</b></span>
             ))}
           </div>
+        )}
+        {security.recent.length > 0 && (
+          <>
+            <h3 className={styles.blockTitle}>최근 감지 내역</h3>
+            <div className={styles.summary}>
+              {security.recent.map((event, index) => (
+                <span key={`${event.occurredAt}-${event.reason}-${index}`} className={styles.summaryItem}>
+                  {new Date(event.occurredAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                  {' · '}
+                  {SECURITY_REASON_LABEL[event.reason] ?? event.reason}
+                  {event.riskScore !== null ? ` · 위험점수 ${event.riskScore}` : ''}
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
