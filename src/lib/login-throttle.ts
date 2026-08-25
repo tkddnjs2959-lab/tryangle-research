@@ -38,9 +38,8 @@ async function load(ip: string): Promise<Row | null> {
     .eq('ip', ip)
     .maybeSingle();
   if (error) {
-    // 제한 장치가 고장 났다고 로그인 자체를 막지는 않는다.
     console.error('로그인 시도 기록 조회 실패', error.message);
-    return null;
+    throw new Error('로그인 시도 제한을 확인할 수 없습니다.');
   }
   return (data as Row | null) ?? null;
 }
@@ -76,7 +75,7 @@ export async function recordFailure(ip: string): Promise<number | null> {
       },
       { onConflict: 'ip' }
     );
-  if (error) console.error('로그인 시도 기록 실패', error.message);
+  if (error) throw new Error('로그인 실패 기록을 저장할 수 없습니다.');
 
   return shouldLock ? Math.ceil(LOCK_MS / 1000) : null;
 }

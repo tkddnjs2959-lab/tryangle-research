@@ -1,5 +1,6 @@
 import 'server-only';
 import { db } from './supabase';
+import { currentAdminId } from './admin-auth';
 
 /**
  * 어드민 변경 이력.
@@ -33,7 +34,10 @@ export type AuditAction =
   | 'kakao_test_message'
   | 'inquiry_export'
   | 'conversion_consultation_complete'
-  | 'conversion_payment_complete';
+  | 'conversion_payment_complete'
+  | 'consultation_transcript_view'
+  | 'consultation_transcript_purge'
+  | 'admin_sessions_revoke';
 
 export type AuditEntry = {
   id: number;
@@ -53,6 +57,7 @@ export async function audit(input: {
 }): Promise<void> {
   try {
     const { error } = await db().from('admin_audit_log').insert({
+      admin_id: await currentAdminId(),
       action: input.action,
       target_type: input.targetType ?? null,
       target_id: input.targetId ?? null,

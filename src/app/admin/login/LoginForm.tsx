@@ -11,11 +11,29 @@ export default function LoginForm() {
     <form action={action} className={styles.loginForm}>
       <input
         className={styles.input}
+        type="text"
+        name="adminId"
+        placeholder="관리자 아이디"
+        autoComplete="username"
+        required
+        autoFocus
+      />
+      <input
+        className={styles.input}
         type="password"
         name="password"
         placeholder="비밀번호"
         autoComplete="current-password"
-        autoFocus
+        required
+      />
+      <input
+        className={styles.input}
+        type="text"
+        inputMode="numeric"
+        name="totp"
+        placeholder="인증 앱 6자리 번호"
+        autoComplete="one-time-code"
+        pattern="[0-9]{6}"
       />
       {error && <p className={styles.error}>{error}</p>}
       <button className={styles.btn} type="submit" disabled={pending}>

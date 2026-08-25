@@ -10,7 +10,7 @@ import {
 } from '@/lib/actor-status';
 import { CATEGORY_LABEL } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
-import { logout } from './actions';
+import { logout, revokeOtherSessions } from './actions';
 import AddActorForm from './AddActorForm';
 import AdminTabs from './AdminTabs';
 import styles from './admin.module.css';
@@ -84,6 +84,9 @@ export default async function Page({
           </Link>
           <Link href="/admin/inquiries?view=open" className={`${styles.btn} ${styles.ghost}`}>진행 중 {openInquiries}</Link>
           <Link href="/admin/inquiries?view=followup" className={`${styles.btn} ${styles.ghost}`}>후속 기록 {memoInquiries}</Link>
+          <form action={revokeOtherSessions}>
+            <button className={`${styles.btn} ${styles.ghost}`} type="submit">다른 기기 로그아웃</button>
+          </form>
           <form action={logout}>
             <button className={`${styles.btn} ${styles.ghost}`} type="submit">
               로그아웃

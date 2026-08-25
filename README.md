@@ -200,15 +200,19 @@ npm run dev
    | `SUPABASE_URL` | ✅ | `https://xvpqjawckzdkzkohhbdg.supabase.co` |
    | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | **마스터 키.** `NEXT_PUBLIC_` 붙이지 말 것 |
    | `ADMIN_PASSWORD` | ✅ | 어드민 로그인 비밀번호 |
+   | `ADMIN_LOGIN_ID` | ✅ | 관리자 개인 아이디 |
+   | `ADMIN_TOTP_SECRET` | ✅ | 인증 앱에 등록하는 base32 비밀키 |
+   | `ADMIN_MFA_REQUIRED` | ✅ | 인증 앱 등록 확인 후 `true` |
    | `SESSION_SECRET` | ✅ | 긴 랜덤 문자열 |
+   | `CONSULTATION_ENCRYPTION_KEY` | ✅ | 상담 원문 AES-256-GCM 암호화 키 |
    | `KAKAO_REST_API_KEY` | 배우 로그인용 | |
    | `KAKAO_ACTOR_REDIRECT_URI` | 배우 로그인용 | `https://<도메인>/api/actor/kakao/callback` |
    | `KAKAO_CLIENT_SECRET` | 콘솔에서 켠 경우만 | |
    | `KAKAO_ACTOR_SCOPES` | 알림 쓸 때만 | 아래 [주차 공개 알림](#주차-공개-알림-카카오) 순서를 먼저 볼 것 |
    | `PUBLIC_BASE_URL` | 알림 링크용 | `https://<도메인>` |
-   | `DEEPSEEK_API_KEY` | 상담 AI를 켤 때만 | 서버 전용 키. `NEXT_PUBLIC_`로 등록하지 않는다 |
+   | `DEEPSEEK_API_KEY` | 현재 사용 안 함 | 외부 AI 자동 전송을 중단했으므로 비워둔다 |
    | `DEEPSEEK_MODEL` | 상담 AI를 켤 때만 | 기본값 `deepseek-chat` |
-   | `DEEPSEEK_ANALYSIS_ENABLED` | 상담 AI를 켤 때만 | 운영에서 `true`; `false`면 분석을 비활성화한다 |
+   | `DEEPSEEK_ANALYSIS_ENABLED` | ✅ | 현재 `false` 고정 |
    | `KAKAO_PRIMARY_ADMIN_KEY` | 연결 해제 웹훅 사용 시 | Kakao Developers 대표 어드민 키(일반 REST 키 아님) |
    | `KAKAO_APP_ID` | 연결 해제 웹훅 사용 시 | 웹훅 `app_id` 검증용 Kakao 앱 ID |
 

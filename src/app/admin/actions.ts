@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { checkPassword, createSession, destroySession, isLoggedIn } from '@/lib/admin-auth';
+import { createHash } from 'node:crypto';
+import { checkAdminId, checkPassword, createSession, destroySession, isLoggedIn, revokeOtherAdminSessions } from '@/lib/admin-auth';
+import { isMfaRequired, verifyAdminTotp } from '@/lib/admin-mfa';
 import { getActorAccountById, getActorKakaoRefreshToken, getActorNotificationToken, unlinkActorFromKakao } from '@/lib/actor-account';
 import { refreshKakaoAccessToken, sendKakaoMemo, unlinkKakaoUser } from '@/lib/kakao-login';
 import {
@@ -24,8 +26,9 @@ import {
   listCohortWeeks,
   restoreResponse,
   rejectConsultationAnalysis,
-  saveConsultationAnalysis,
   saveConsultationTranscript,
+  saveConsultationAnalysis,
+  purgeConsultationTranscript,
   updateActionItem,
   setActorWeekOverride,
   setCohortWeekOpen,
@@ -48,7 +51,6 @@ import {
 } from '@/lib/login-throttle';
 import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
-import { analyzeConsultation } from '@/lib/consultation-analysis';
 import { WEEK_COUNT } from '@/lib/weeks';
 
 async function requireAdmin() {
@@ -56,23 +58,37 @@ async function requireAdmin() {
 }
 
 export async function login(_prev: string | null, form: FormData): Promise<string | null> {
+  const adminId = String(form.get('adminId') ?? '');
   const pw = String(form.get('password') ?? '');
-  if (!pw) return '비밀번호를 입력해주세요.';
+  const totp = String(form.get('totp') ?? '').trim();
+  if (!adminId || !pw) return '관리자 아이디와 비밀번호를 입력해주세요.';
 
   // 공개 배포된 로그인 화면이라 대입 공격을 시도 제한으로 막는다.
   const ip = await clientIp();
-  const locked = await lockedSeconds(ip);
+  let locked: number | null;
+  try {
+    locked = await lockedSeconds(ip);
+  } catch {
+    return '보안 확인 서비스가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해주세요.';
+  }
   if (locked !== null) {
     return `로그인 시도가 너무 많습니다. ${humanizeSeconds(locked)} 후에 다시 시도해주세요.`;
   }
 
-  if (!checkPassword(pw)) {
-    const lockedFor = await recordFailure(ip);
+  if (!checkAdminId(adminId) || !checkPassword(pw) || !verifyAdminTotp(totp)) {
+    let lockedFor: number | null;
+    try {
+      lockedFor = await recordFailure(ip);
+    } catch {
+      return '보안 기록을 저장할 수 없어 로그인을 중단했습니다. 잠시 후 다시 시도해주세요.';
+    }
     if (lockedFor !== null) {
       return `비밀번호를 여러 번 틀렸습니다. ${humanizeSeconds(lockedFor)} 동안 잠깁니다.`;
     }
-    return '비밀번호가 올바르지 않습니다.';
+    return '로그인 정보가 올바르지 않습니다.';
   }
+
+  if (isMfaRequired() && !process.env.ADMIN_TOTP_SECRET) return '2단계 인증 설정이 완료되지 않아 로그인이 잠겼습니다.';
 
   await clearFailures(ip);
   await createSession();
@@ -82,6 +98,13 @@ export async function login(_prev: string | null, form: FormData): Promise<strin
 export async function logout() {
   await destroySession();
   redirect('/admin/login');
+}
+
+export async function revokeOtherSessions() {
+  await requireAdmin();
+  await revokeOtherAdminSessions();
+  await audit({ action: 'admin_sessions_revoke', targetType: 'admin', summary: '현재 기기를 제외한 관리자 세션을 종료했습니다.' });
+  revalidatePath('/admin');
 }
 
 export async function addActor(_prev: string | null, form: FormData): Promise<string | null> {
@@ -481,36 +504,65 @@ export async function createConsultation(form: FormData) {
   const durationSeconds = Number.isFinite(durationValue) && durationValue >= 0 ? Math.floor(durationValue) : null;
   const consultationTypeValue = String(form.get('consultationType') ?? 'general');
   const consultationType = ['general', 'profile', 'coaching', 'follow_up'].includes(consultationTypeValue) ? consultationTypeValue : 'general';
-  const sessionId = await createConsultationSession({ actorId, consultedAt: consultedDate.toISOString(), consultationType, durationSeconds, counselorName: String(form.get('counselorName') ?? '').trim() || null, source, recordingPath: String(form.get('recordingPath') ?? '').trim() || null, consentObtainedAt: new Date().toISOString() });
+  const retentionDaysValue = Number(form.get('retentionDays') ?? 180);
+  const retentionDays = Number.isInteger(retentionDaysValue) && retentionDaysValue >= 7 && retentionDaysValue <= 365 ? retentionDaysValue : 180;
+  const retentionUntil = new Date(Date.now() + retentionDays * 86_400_000).toISOString();
+  const sessionId = await createConsultationSession({ actorId, consultedAt: consultedDate.toISOString(), consultationType, durationSeconds, counselorName: String(form.get('counselorName') ?? '').trim() || null, source, recordingPath: String(form.get('recordingPath') ?? '').trim() || null, consentObtainedAt: new Date().toISOString(), retentionUntil });
   if (transcript) await saveConsultationTranscript({ sessionId, fullText: transcript });
   await audit({ action: 'consultation_create', targetType: 'actor', targetId: actorId, summary: '상담 세션을 등록했습니다.', detail: { sessionId, transcriptSaved: Boolean(transcript), source } });
   if (transcript) await audit({ action: 'consultation_transcript_save', targetType: 'consultation_session', targetId: sessionId, summary: '상담 원문을 저장했습니다.' });
   revalidatePath(`/admin/${actorId}`);
 }
 
-export async function runConsultationAnalysis(form: FormData) {
+export async function purgeConsultation(form: FormData) {
   await requireAdmin();
   const sessionId = String(form.get('sessionId') ?? '');
   const session = await getConsultationSession(sessionId);
-  if (!session?.transcript || session.status === 'archived') return;
-  const actor = await getActor(session.actorId);
-  if (!actor) return;
-  const existing = session.analyses.reduce((max, a) => Math.max(max, a.analysisVersion), 0);
-  let result: Awaited<ReturnType<typeof analyzeConsultation>>;
-  try {
-    result = await analyzeConsultation({ text: session.transcript.fullText, actorName: actor.name });
-  } catch {
-    await saveConsultationAnalysis({ sessionId, model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', promptVersion: 'v1', analysisVersion: existing + 1, summary: 'AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.', structuredResult: { error: 'analysis_failed' }, inputHash: 'unavailable', tokenUsage: null, status: 'failed' });
-    await audit({ action: 'consultation_analysis_run', targetType: 'consultation_session', targetId: sessionId, summary: '상담 AI 분석에 실패했습니다.' });
+  if (!session || session.status === 'archived') return;
+  if (await purgeConsultationTranscript(sessionId)) {
+    await audit({ action: 'consultation_transcript_purge', targetType: 'consultation_session', targetId: sessionId, summary: '상담 원문을 영구 삭제했습니다.' });
     revalidatePath(`/admin/${session.actorId}`);
-    return;
   }
-  if (!result.configured) {
-    await saveConsultationAnalysis({ sessionId, model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', promptVersion: 'v1', analysisVersion: existing + 1, summary: 'DeepSeek API 키가 설정되지 않아 분석하지 못했습니다.', structuredResult: { error: 'not_configured' }, inputHash: result.hash, tokenUsage: null, status: 'failed' });
-  } else {
-      await saveConsultationAnalysis({ sessionId, model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', promptVersion: 'v1', analysisVersion: existing + 1, summary: typeof result.structured.summary === 'string' ? result.structured.summary : null, structuredResult: result.structured, inputHash: result.hash, tokenUsage: result.usage });
-  }
-  await audit({ action: 'consultation_analysis_run', targetType: 'consultation_session', targetId: sessionId, summary: '상담 AI 분석을 실행했습니다.' });
+}
+
+function lines(value: FormDataEntryValue | null) {
+  return String(value ?? '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 50);
+}
+
+export async function saveManualConsultationAnalysis(form: FormData) {
+  await requireAdmin();
+  const sessionId = String(form.get('sessionId') ?? '');
+  const session = await getConsultationSession(sessionId);
+  if (!session?.transcript?.fullText || session.status === 'archived') return;
+  if (form.get('reviewed') !== 'on') return;
+  const summary = String(form.get('summary') ?? '').trim();
+  if (!summary || summary.length > 10_000) return;
+  const structuredResult = {
+    summary,
+    consultation_purpose: String(form.get('purpose') ?? '').trim().slice(0, 5_000),
+    current_concerns: lines(form.get('concerns')),
+    goals: lines(form.get('goals')),
+    strengths: [], barriers: [], external_image_observations: [], internal_image_observations: [],
+    character_position_hypotheses: lines(form.get('positions')),
+    profile_strategy: lines(form.get('profileStrategy')),
+    acting_material_recommendations: [],
+    agreed_actions: lines(form.get('actions')),
+    follow_up_questions: lines(form.get('followups')),
+    risk_flags: [], evidence: [],
+  };
+  const version = session.analyses.reduce((max, analysis) => Math.max(max, analysis.analysisVersion), 0) + 1;
+  await saveConsultationAnalysis({
+    sessionId,
+    model: 'manual-codex-assisted',
+    promptVersion: 'manual-v1',
+    analysisVersion: version,
+    summary,
+    structuredResult,
+    inputHash: createHash('sha256').update(session.transcript.fullText).digest('hex'),
+    tokenUsage: null,
+    status: 'approved',
+  });
+  await audit({ action: 'consultation_analysis_review', targetType: 'consultation_session', targetId: sessionId, summary: '검수된 수동 상담 분석을 저장했습니다.', detail: { version } });
   revalidatePath(`/admin/${session.actorId}`);
 }
 

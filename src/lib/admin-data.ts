@@ -800,10 +800,11 @@ export type ConsultationSessionRow = {
   id: string; actorId: string; consultedAt: string; consultationType: string;
   durationSeconds: number | null; counselorName: string | null; source: string;
   status: string; recordingPath: string | null; consentObtainedAt: string | null;
+  retentionUntil: string | null; recordingDeletedAt: string | null;
   createdAt: string; transcript: ConsultationTranscriptRow | null;
   analyses: ConsultationAnalysisRow[]; actionItemCount: number;
 };
-export type ConsultationTranscriptRow = { id: string; fullText: string; createdAt: string; updatedAt: string };
+export type ConsultationTranscriptRow = { id: string; fullText: string | null; createdAt: string; updatedAt: string; retentionUntil: string | null; deletedAt: string | null };
 export type ConsultationAnalysisRow = {
   id: string; model: string; promptVersion: string; analysisVersion: number;
   summary: string | null; structuredResult: Record<string, unknown>; inputHash: string;
@@ -819,8 +820,9 @@ function mapSession(r: any, transcript: any, analyses: any[], actionItemCount: n
     id: r.id, actorId: r.actor_id, consultedAt: r.consulted_at, consultationType: r.consultation_type,
     durationSeconds: r.duration_seconds, counselorName: r.counselor_name, source: r.source,
     status: r.status, recordingPath: r.recording_path, consentObtainedAt: r.consent_obtained_at,
+    retentionUntil: r.retention_until, recordingDeletedAt: r.recording_deleted_at,
     createdAt: r.created_at,
-    transcript: transcript ? { id: transcript.id, fullText: transcript.full_text, createdAt: transcript.created_at, updatedAt: transcript.updated_at } : null,
+    transcript: transcript ? { id: transcript.id, fullText: transcript.full_text ?? null, createdAt: transcript.created_at, updatedAt: transcript.updated_at, retentionUntil: transcript.retention_until ?? null, deletedAt: transcript.deleted_at ?? null } : null,
     analyses: analyses.map((a) => ({ id: a.id, model: a.model, promptVersion: a.prompt_version, analysisVersion: a.analysis_version, summary: a.summary, structuredResult: a.structured_result, inputHash: a.input_hash, status: a.status, reviewedAt: a.reviewed_at, reviewedBy: a.reviewed_by, createdAt: a.created_at })),
     actionItemCount,
   };
@@ -832,7 +834,7 @@ export async function listConsultationSessions(actorId: string): Promise<Consult
   if (error) throw new Error(error.message);
   return Promise.all((data ?? []).map(async (r: any) => {
     const [t, a, items] = await Promise.all([
-      supabase.from('consultation_transcripts').select('id,full_text,created_at,updated_at').eq('session_id', r.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('consultation_transcripts').select('id,created_at,updated_at,retention_until,deleted_at').eq('session_id', r.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('consultation_analyses').select('*').eq('session_id', r.id).order('created_at', { ascending: false }),
       supabase.from('consultation_action_items').select('id', { count: 'exact', head: true }).eq('session_id', r.id).neq('status', 'done').neq('status', 'cancelled'),
     ]);
@@ -846,16 +848,20 @@ export async function getConsultationSession(sessionId: string): Promise<Consult
   if (error) throw new Error(error.message); if (!data) return null;
   const supabase = db();
   const [t, a, items] = await Promise.all([
-    supabase.from('consultation_transcripts').select('id,full_text,created_at,updated_at').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('consultation_transcripts').select('id,full_text,encrypted_text,encryption_iv,encryption_tag,encryption_version,created_at,updated_at,retention_until,deleted_at').eq('session_id', sessionId).is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('consultation_analyses').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }),
     supabase.from('consultation_action_items').select('id', { count: 'exact', head: true }).eq('session_id', sessionId).neq('status', 'done').neq('status', 'cancelled'),
   ]);
   if (t.error || a.error || items.error) throw new Error((t.error || a.error || items.error)!.message);
+  if (t.data) {
+    const { decryptConsultationText } = await import('./consultation-crypto');
+    t.data.full_text = decryptConsultationText({ fullText: t.data.full_text, encryptedText: t.data.encrypted_text, encryptionIv: t.data.encryption_iv, encryptionTag: t.data.encryption_tag, encryptionVersion: t.data.encryption_version });
+  }
   return mapSession(data, t.data, a.data ?? [], items.count ?? 0);
 }
 
-export async function createConsultationSession(input: { actorId: string; consultedAt: string; consultationType: string; durationSeconds: number | null; counselorName: string | null; source: string; recordingPath: string | null; consentObtainedAt: string | null }) {
-  const { data, error } = await db().from('consultation_sessions').insert({ actor_id: input.actorId, consulted_at: input.consultedAt, consultation_type: input.consultationType, duration_seconds: input.durationSeconds, counselor_name: input.counselorName, source: input.source, recording_path: input.recordingPath, consent_obtained_at: input.consentObtainedAt }).select('id').single();
+export async function createConsultationSession(input: { actorId: string; consultedAt: string; consultationType: string; durationSeconds: number | null; counselorName: string | null; source: string; recordingPath: string | null; consentObtainedAt: string | null; retentionUntil: string | null }) {
+  const { data, error } = await db().from('consultation_sessions').insert({ actor_id: input.actorId, consulted_at: input.consultedAt, consultation_type: input.consultationType, duration_seconds: input.durationSeconds, counselor_name: input.counselorName, source: input.source, recording_path: input.recordingPath, consent_obtained_at: input.consentObtainedAt, retention_until: input.retentionUntil }).select('id').single();
   if (error) throw new Error(error.message); return data.id as string;
 }
 export async function updateConsultationSession(sessionId: string, input: Record<string, unknown>) { const { error } = await db().from('consultation_sessions').update(input).eq('id', sessionId); if (error) throw new Error(error.message); }
@@ -866,9 +872,50 @@ export async function saveConsultationTranscript(input: { sessionId: string; ful
   if (!text || text.length > 500_000) throw new Error('상담 원문 길이가 올바르지 않습니다.');
   const session = await getConsultationSession(input.sessionId);
   if (!session || session.status === 'archived') throw new Error('보관된 상담에는 원문을 추가할 수 없습니다.');
-  const { error } = await db().from('consultation_transcripts').insert({ session_id: input.sessionId, full_text: text });
+  const { encryptConsultationText } = await import('./consultation-crypto');
+  const encrypted = encryptConsultationText(text);
+  const { error } = await db().from('consultation_transcripts').insert({
+    session_id: input.sessionId,
+    full_text: encrypted.fullTextMarker,
+    encrypted_text: encrypted.encryptedText,
+    encryption_iv: encrypted.encryptionIv,
+    encryption_tag: encrypted.encryptionTag,
+    encryption_version: encrypted.encryptionVersion,
+    retention_until: session.retentionUntil,
+  });
   if (error) throw new Error(error.message);
   await updateConsultationSession(input.sessionId, { status: 'reviewed', updated_at: new Date().toISOString() });
+}
+
+export async function purgeConsultationTranscript(sessionId: string) {
+  const session = await getConsultationSession(sessionId);
+  if (!session?.transcript) return false;
+  const now = new Date().toISOString();
+  const { error } = await db().from('consultation_transcripts').update({
+    full_text: '[deleted]', encrypted_text: null, encryption_iv: null, encryption_tag: null,
+    deleted_at: now, updated_at: now,
+  }).eq('id', session.transcript.id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+export async function purgeExpiredConsultationTranscripts() {
+  const now = new Date().toISOString();
+  const { data, error } = await db().from('consultation_transcripts')
+    .select('id')
+    .is('deleted_at', null)
+    .not('retention_until', 'is', null)
+    .lte('retention_until', now)
+    .limit(500);
+  if (error) throw new Error(error.message);
+  const ids = (data ?? []).map((row) => row.id as string);
+  if (ids.length === 0) return 0;
+  const { error: updateError } = await db().from('consultation_transcripts').update({
+    full_text: '[deleted]', encrypted_text: null, encryption_iv: null, encryption_tag: null,
+    deleted_at: now, updated_at: now,
+  }).in('id', ids);
+  if (updateError) throw new Error(updateError.message);
+  return ids.length;
 }
 export async function listConsultationAnalyses(sessionId: string) { const { data, error } = await db().from('consultation_analyses').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; }
 export async function getConsultationAnalysis(id: string) { const { data, error } = await db().from('consultation_analyses').select('id,session_id,status,structured_result').eq('id', id).maybeSingle(); if (error) throw new Error(error.message); return data; }

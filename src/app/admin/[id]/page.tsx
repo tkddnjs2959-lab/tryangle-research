@@ -29,7 +29,8 @@ import {
   sendActorKakaoTest,
   unlinkActorKakao,
   reviewConsultationAnalysis,
-  runConsultationAnalysis,
+  purgeConsultation,
+  saveManualConsultationAnalysis,
 } from '../actions';
 import ConfirmButton from '../ConfirmButton';
 import NotifyBanner from '../NotifyBanner';
@@ -357,11 +358,12 @@ export default async function Page({
           <label>상담 유형<select name="consultationType" defaultValue="general"><option value="general">일반 상담</option><option value="profile">프로필</option><option value="coaching">코칭</option><option value="follow_up">후속 상담</option></select></label>
           <label>상담 시간(초)<input name="durationSeconds" type="number" min="0" /></label>
           <label>상담자<input name="counselorName" placeholder="이름" /></label>
-          <label className={styles.fullField}>상담 원문<textarea name="transcript" rows={7} placeholder="클로바노트에서 텍스트를 복사해 붙여넣으세요." /></label>
+          <label className={styles.fullField}>상담 원문<textarea name="transcript" rows={7} placeholder="클로바노트에서 검수한 텍스트를 복사해 붙여넣으세요." /></label>
           <label>텍스트 파일 불러오기<input name="transcriptFile" type="file" accept=".txt,text/plain" /></label>
           <label>출처<select name="source" defaultValue="manual"><option value="manual">수동 입력</option><option value="clova_note_import">클로바노트 가져오기</option></select></label>
           <label className={styles.fullField}>녹음 파일 경로 또는 메모<input name="recordingPath" /></label>
-          <label className={styles.consent}><input name="consent" type="checkbox" required /> 개인정보 처리 및 AI 분석 동의 확인</label>
+          <label>원문 보관기간<select name="retentionDays" defaultValue="180"><option value="30">30일</option><option value="90">90일</option><option value="180">180일</option><option value="365">1년</option></select></label>
+          <label className={styles.consent}><input name="consent" type="checkbox" required /> 녹음·텍스트 변환·내부 저장 동의 확인</label>
           <button className={styles.btn} type="submit">상담 등록</button>
         </form>
         {consultations.length === 0 ? <p className={styles.empty}>등록된 상담이 없습니다.</p> : <div className={styles.consultList}>
@@ -372,8 +374,9 @@ export default async function Page({
             return <article key={c.id} className={styles.consultCard}>
               <div className={styles.consultHead}><div><strong>{new Date(c.consultedAt).toLocaleString('ko-KR')}</strong><span className={styles.dim}> · {c.consultationType} · {c.source === 'clova_note_import' ? '클로바노트 수동 가져오기' : '수동 입력'}</span></div><span className={latest?.status === 'approved' ? styles.openTag : styles.statusTag}>{latest ? (latest.status === 'pending' ? '검수 필요' : latest.status === 'approved' ? '승인됨' : latest.status === 'rejected' ? '거절됨' : '분석 실패') : '분석 대기'}</span></div>
               <div className={styles.consultMeta}>원문: {c.transcript ? '등록됨' : '없음'} · 미완료 후속 조치 {c.actionItemCount}개</div>
-              {c.transcript && <details><summary>상담 원문 보기</summary><p className={styles.transcript}>{c.transcript.fullText}</p></details>}
-              {c.transcript && <div className={styles.consultActions}><form action={runConsultationAnalysis}><input type="hidden" name="sessionId" value={c.id} /><button className={`${styles.btn} ${styles.ghost} ${styles.sm}`} type="submit">AI 분석 실행</button></form><form action={archiveConsultation}><input type="hidden" name="sessionId" value={c.id} /><input type="hidden" name="actorId" value={actor.id} /><ConfirmButton className={`${styles.btn} ${styles.ghost} ${styles.sm}`} message="이 상담을 보관하시겠습니까?">보관</ConfirmButton></form></div>}
+              {c.retentionUntil && <div className={styles.consultMeta}>원문 삭제 예정: {new Date(c.retentionUntil).toLocaleDateString('ko-KR')}</div>}
+              {c.transcript && <div className={styles.consultActions}><a className={`${styles.btn} ${styles.ghost} ${styles.sm}`} href={`/admin/consultations/${c.id}/transcript`} target="_blank" rel="noreferrer">원문 열람</a><form action={purgeConsultation}><input type="hidden" name="sessionId" value={c.id} /><ConfirmButton className={`${styles.btn} ${styles.ghost} ${styles.sm}`} message="암호화된 상담 원문을 영구 삭제합니다. 되돌릴 수 없습니다.">원문 삭제</ConfirmButton></form><form action={archiveConsultation}><input type="hidden" name="sessionId" value={c.id} /><input type="hidden" name="actorId" value={actor.id} /><ConfirmButton className={`${styles.btn} ${styles.ghost} ${styles.sm}`} message="이 상담을 보관하시겠습니까?">보관</ConfirmButton></form></div>}
+              {c.transcript && <details><summary>검수한 분석 결과 저장</summary><form action={saveManualConsultationAnalysis} className={styles.consultForm}><input type="hidden" name="sessionId" value={c.id} /><label className={styles.fullField}>핵심 요약<textarea name="summary" rows={4} required placeholder="제가 정리한 핵심 요약을 붙여넣으세요." /></label><label className={styles.fullField}>상담 목적<textarea name="purpose" rows={2} /></label><label>현재 고민(한 줄씩)<textarea name="concerns" rows={4} /></label><label>목표(한 줄씩)<textarea name="goals" rows={4} /></label><label>캐릭터 포지션(한 줄씩)<textarea name="positions" rows={4} /></label><label>프로필 전략(한 줄씩)<textarea name="profileStrategy" rows={4} /></label><label>합의된 조치(한 줄씩)<textarea name="actions" rows={4} /></label><label>후속 질문(한 줄씩)<textarea name="followups" rows={4} /></label><label className={styles.consent}><input name="reviewed" type="checkbox" required /> 원문과 대조해 검수한 결과임을 확인</label><button className={styles.btn} type="submit">수동 분석 저장</button></form></details>}
               {approved && approved.id !== latest?.id && <p className={styles.consultMeta}>최신 확정 분석: v{approved.analysisVersion}</p>}
               {latest && <div className={styles.analysisBox}>
                 <h3>AI 분석 v{latest.analysisVersion}</h3>
