@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { isLoggedIn } from '@/lib/admin-auth';
+import { currentAdminIdentity } from '@/lib/admin-auth';
 import { getConsultationSession } from '@/lib/admin-data';
 import { audit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(_request: Request, context: { params: Promise<{ sessionId: string }> }) {
-  if (!(await isLoggedIn())) return new NextResponse('Unauthorized', { status: 401 });
+  const identity = await currentAdminIdentity();
+  if (!identity) return new NextResponse('Unauthorized', { status: 401 });
+  if (identity.role === 'viewer') return new NextResponse('Forbidden', { status: 403 });
   const { sessionId } = await context.params;
   const session = await getConsultationSession(sessionId);
   if (!session?.transcript?.fullText) return new NextResponse('상담 원문이 없거나 삭제되었습니다.', { status: 404 });

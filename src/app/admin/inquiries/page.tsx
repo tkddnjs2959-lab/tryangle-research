@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { isLoggedIn } from '@/lib/admin-auth';
+import { currentAdminIdentity } from '@/lib/admin-auth';
 import { getInquirySecuritySummary, listInquiries, type InquiryStatus } from '@/lib/admin-data';
 import { clarityReport } from '@/lib/clarity-report';
 import { changeInquiryStatus, removeInquiry, saveInquiryMemo } from '../actions';
@@ -77,7 +77,8 @@ export default async function Page({
 }: {
   searchParams: Promise<{ days?: string; view?: string }>;
 }) {
-  if (!(await isLoggedIn())) redirect('/admin/login');
+  const identity = await currentAdminIdentity();
+  if (!identity) redirect('/admin/login');
 
   const [allInquiries, security, params] = await Promise.all([
     listInquiries(),
@@ -206,7 +207,9 @@ export default async function Page({
           <Link href={`/admin/inquiries?view=open${days ? `&days=${days}` : ''}`} className={`${view === 'open' ? styles.primary : styles.ghost} ${styles.btn} ${styles.sm}`}>진행 중</Link>
           <Link href={`/admin/inquiries?view=followup${days ? `&days=${days}` : ''}`} className={`${view === 'followup' ? styles.primary : styles.ghost} ${styles.btn} ${styles.sm}`}>후속 기록 있음</Link>
           <Link href={`/admin/inquiries?view=priority${days ? `&days=${days}` : ''}`} className={`${view === 'priority' ? styles.primary : styles.ghost} ${styles.btn} ${styles.sm}`}>오늘 우선 처리</Link>
-          <a href={`/admin/inquiries/export${days ? `?days=${days}` : ''}`} className={`${styles.btn} ${styles.ghost} ${styles.sm}`}>CSV 내려받기</a>
+          {identity.role === 'owner' && (
+            <a href={`/admin/inquiries/export?days=${days || 30}`} className={`${styles.btn} ${styles.ghost} ${styles.sm}`}>CSV 내려받기</a>
+          )}
         </div>
         <div className={styles.analysisGrid}>
           <div className={styles.metricCard}>

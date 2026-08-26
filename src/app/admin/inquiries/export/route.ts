@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isLoggedIn } from '@/lib/admin-auth';
+import { currentAdminIdentity } from '@/lib/admin-auth';
 import { listInquiries } from '@/lib/admin-data';
 import { audit } from '@/lib/audit';
 
@@ -12,10 +12,12 @@ function csvCell(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  if (!(await isLoggedIn())) return new NextResponse('Unauthorized', { status: 401 });
+  const identity = await currentAdminIdentity();
+  if (!identity) return new NextResponse('Unauthorized', { status: 401 });
+  if (identity.role !== 'owner') return new NextResponse('Forbidden', { status: 403 });
 
   const daysParam = new URL(request.url).searchParams.get('days');
-  const days = daysParam === '7' || daysParam === '30' ? Number(daysParam) : null;
+  const days = daysParam === '7' || daysParam === '30' ? Number(daysParam) : 30;
   const cutoff = days ? Date.now() - days * 24 * 60 * 60 * 1000 : null;
   const inquiries = (await listInquiries()).filter(
     (inquiry) => !cutoff || new Date(inquiry.createdAt).getTime() >= cutoff,
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
     inquiry.message,
   ]);
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
-  const suffix = days ? `-${days}d` : '-all';
+  const suffix = `-${days}d`;
   await audit({
     action: 'inquiry_export',
     targetType: 'inquiries',

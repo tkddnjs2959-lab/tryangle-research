@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createHash } from 'node:crypto';
-import { checkAdminId, checkPassword, createSession, destroySession, ensureLegacyAdminAccount, isLoggedIn, revokeOtherAdminSessions } from '@/lib/admin-auth';
+import { checkAdminId, checkPassword, createSession, currentAdminIdentity, destroySession, ensureLegacyAdminAccount, revokeOtherAdminSessions, type AdminRole } from '@/lib/admin-auth';
 import { isMfaRequired, verifyAdminTotp } from '@/lib/admin-mfa';
 import { getActorAccountById, getActorKakaoRefreshToken, getActorNotificationToken, unlinkActorFromKakao } from '@/lib/actor-account';
 import { refreshKakaoAccessToken, sendKakaoMemo, unlinkKakaoUser } from '@/lib/kakao-login';
@@ -53,8 +53,11 @@ import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
 
-async function requireAdmin() {
-  if (!(await isLoggedIn())) redirect('/admin/login');
+async function requireAdmin(roles: readonly AdminRole[] = ['owner', 'admin']) {
+  const identity = await currentAdminIdentity();
+  if (!identity) redirect('/admin/login');
+  if (!roles.includes(identity.role)) throw new Error('이 작업을 수행할 권한이 없습니다.');
+  return identity;
 }
 
 export async function login(_prev: string | null, form: FormData): Promise<string | null> {
@@ -309,7 +312,7 @@ export async function setActorWeek(formData: FormData) {
 }
 
 export async function archiveActor(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin(['owner']);
   const actorId = String(formData.get('actorId') ?? '');
   await db().from('actors').update({ status: 'archived' }).eq('id', actorId);
   revalidatePath('/admin');
@@ -336,7 +339,7 @@ export async function changeInquiryStatus(formData: FormData) {
 }
 
 export async function removeInquiry(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin(['owner']);
   const id = String(formData.get('id') ?? '');
   if (id) await deleteInquiry(id);
   revalidatePath('/admin/inquiries');
@@ -407,7 +410,7 @@ export async function unlinkCoaching(formData: FormData) {
 }
 
 export async function removeCoachingStudent(formData: FormData) {
-  await requireAdmin();
+  await requireAdmin(['owner']);
   const id = String(formData.get('id') ?? '');
   if (id) await archiveCoachingStudent(id);
   revalidatePath('/admin/coaching');
@@ -528,7 +531,7 @@ export async function createConsultation(form: FormData) {
 }
 
 export async function purgeConsultation(form: FormData) {
-  await requireAdmin();
+  await requireAdmin(['owner']);
   const sessionId = String(form.get('sessionId') ?? '');
   const session = await getConsultationSession(sessionId);
   if (!session || session.status === 'archived') return;

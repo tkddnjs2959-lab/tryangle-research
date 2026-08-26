@@ -4,12 +4,35 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
 import { SUBMIT_ERRORS } from '@/lib/research';
 import { TOKEN_RE } from '@/lib/types';
+import { privacyHash } from '@/lib/consultation-crypto';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_KEYWORDS = 60;   // 이미지 48 / 퍼스널리티 63 이므로 셀프도 여유 있게
 const MAX_CUSTOM = 5;
 const MAX_CUSTOM_LEN = 20;
+const MAX_BODY_BYTES = 8192;
+
+function requestAddress(req: Request) {
+  return req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-real-ip')?.trim()
+    || 'unknown';
+}
+
+function trustedRequest(req: Request) {
+  const origin = req.headers.get('origin');
+  const allowed = new Set([
+    'https://app.tryangle-official.co.kr',
+    process.env.PUBLIC_BASE_URL?.replace(/\/$/, ''),
+  ].filter((value): value is string => Boolean(value)));
+  if (process.env.NODE_ENV !== 'production') {
+    allowed.add('http://localhost:3000');
+    allowed.add('http://127.0.0.1:3000');
+  }
+  return (!origin || allowed.has(origin))
+    && req.headers.get('sec-fetch-site')?.toLowerCase() !== 'cross-site';
+}
 
 export async function POST(
   req: Request,
@@ -22,6 +45,40 @@ export async function POST(
     return NextResponse.json({ message: '존재하지 않는 링크입니다.' }, { status: 404 });
   }
 
+  const contentType = req.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+  const contentLength = Number(req.headers.get('content-length') || 0);
+  if (contentType !== 'application/json') {
+    return NextResponse.json({ message: '지원하지 않는 요청 형식입니다.' }, { status: 415 });
+  }
+  if (contentLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ message: '요청 내용이 너무 큽니다.' }, { status: 413 });
+  }
+  if (!trustedRequest(req)) {
+    return NextResponse.json({ message: '허용되지 않은 요청입니다.' }, { status: 403 });
+  }
+
+  const ipFingerprint = privacyHash(`survey-ip:${requestAddress(req)}`);
+  const requestLimits = [
+    { key: `survey:request:ip:1m:${ipFingerprint}`, limit: 30, seconds: 60 },
+    { key: `survey:request:token:10m:${token}:${ipFingerprint}`, limit: 8, seconds: 600 },
+  ];
+  const rateResults = await Promise.all(requestLimits.map((item) => db().rpc('consume_inquiry_rate_limit', {
+    p_key: item.key,
+    p_limit: item.limit,
+    p_window_seconds: item.seconds,
+  })));
+  const rateFailure = rateResults.find((result) => result.error);
+  if (rateFailure?.error) {
+    console.error(JSON.stringify({ level: 'error', message: 'survey_rate_limit_failed', error: rateFailure.error.message }));
+    return NextResponse.json({ message: '잠시 후 다시 시도해주세요.' }, { status: 503 });
+  }
+  if (rateResults.some((result) => !result.data)) {
+    return NextResponse.json({ message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }, {
+      status: 429,
+      headers: { 'Retry-After': '600' },
+    });
+  }
+
   // 이 브라우저에서 이미 제출했는지.
   // IP+UA 해시로 막으면 같은 집 WiFi 를 쓰는 가족이 서로를 막아버린다.
   // 쿠키는 사람 단위에 가장 가깝고 오탐이 없다.
@@ -32,7 +89,11 @@ export async function POST(
 
   let body: unknown;
   try {
-    body = await req.json();
+    const bodyText = await req.text();
+    if (bodyText.length > MAX_BODY_BYTES) {
+      return NextResponse.json({ message: '요청 내용이 너무 큽니다.' }, { status: 413 });
+    }
+    body = JSON.parse(bodyText);
   } catch {
     return NextResponse.json({ message: '잘못된 요청입니다.' }, { status: 400 });
   }

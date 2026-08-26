@@ -210,6 +210,11 @@ export async function currentAdminIdentity() {
   return verifiedIdentity();
 }
 
+export async function hasAdminRole(roles: readonly AdminRole[]) {
+  const identity = await verifiedIdentity();
+  return Boolean(identity && roles.includes(identity.role));
+}
+
 export async function currentAdminId() {
   return (await verifiedIdentity())?.adminId ?? null;
 }
