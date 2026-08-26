@@ -53,7 +53,7 @@ import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
 import { cookies } from 'next/headers';
-import { GOOGLE_MFA_COOKIE, readGoogleMfaCookie } from '@/lib/admin-google-auth';
+import { bootstrapGoogleAdminAccount, GOOGLE_MFA_COOKIE, readGoogleMfaCookie } from '@/lib/admin-google-auth';
 
 async function requireAdmin(roles: readonly AdminRole[] = ['owner', 'admin']) {
   const identity = await currentAdminIdentity();
@@ -117,8 +117,6 @@ export async function completeGoogleLogin(_prev: string | null, form: FormData):
   const jar = await cookies();
   const pending = readGoogleMfaCookie(jar.get(GOOGLE_MFA_COOKIE)?.value);
   if (!pending) return 'Google 로그인 확인 시간이 만료되었습니다. 다시 시작해주세요.';
-  const identity = await findActiveAdminAccountById(pending.accountId);
-  if (!identity || identity.authProvider !== 'google') return '허용된 Google 관리자 계정이 아닙니다.';
   if (!process.env.ADMIN_TOTP_SECRET?.trim()) return '관리자 인증 앱 설정이 완료되지 않았습니다.';
 
   const ip = await clientIp();
@@ -130,6 +128,13 @@ export async function completeGoogleLogin(_prev: string | null, form: FormData):
     if (lockedFor !== null) return `인증 번호를 여러 번 틀렸습니다. ${humanizeSeconds(lockedFor)} 동안 잠깁니다.`;
     return '인증 앱 번호가 올바르지 않습니다.';
   }
+
+  const identity = pending.accountId
+    ? await findActiveAdminAccountById(pending.accountId)
+    : pending.bootstrapSubject
+      ? await bootstrapGoogleAdminAccount(pending.bootstrapSubject)
+      : null;
+  if (!identity || identity.authProvider !== 'google') return '허용된 Google 관리자 계정이 아닙니다.';
 
   await clearFailures(ip);
   jar.delete(GOOGLE_MFA_COOKIE);

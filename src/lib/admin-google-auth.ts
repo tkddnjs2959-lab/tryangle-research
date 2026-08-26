@@ -16,7 +16,7 @@ type OAuthIntent = {
   expires: number;
 };
 
-type PendingMfa = { accountId: string; expires: number };
+type PendingMfa = { accountId?: string; bootstrapSubject?: string; expires: number };
 
 function secret() {
   const value = process.env.SESSION_SECRET;
@@ -106,10 +106,45 @@ export function createGoogleMfaCookie(identity: AdminIdentity) {
   return seal({ accountId: identity.accountId, expires: Date.now() + 5 * 60 * 1000 } satisfies PendingMfa);
 }
 
+export function createGoogleBootstrapMfaCookie(googleSubject: string) {
+  return seal({ bootstrapSubject: googleSubject.trim(), expires: Date.now() + 5 * 60 * 1000 } satisfies PendingMfa);
+}
+
 export function readGoogleMfaCookie(raw: string | undefined) {
   const pending = unseal<PendingMfa>(raw);
   if (!pending || pending.expires < Date.now()) return null;
   return pending;
+}
+
+/**
+ * 최초 관리자만 Google + TOTP로 등록한다. 허용 목록이 비어 있을 때만
+ * 생성되므로, 첫 계정이 생기면 이후에는 기존 허용 목록 검사를 따른다.
+ */
+export async function bootstrapGoogleAdminAccount(googleSubject: string) {
+  const { count, error: countError } = await db()
+    .from('admin_accounts')
+    .select('id', { count: 'exact', head: true });
+  if (countError || (count ?? 0) !== 0) return null;
+
+  const providerSubjectHash = privacyHash(`admin:google:${googleSubject.trim()}`);
+  const { data, error } = await db()
+    .from('admin_accounts')
+    .insert({
+      auth_provider: 'google',
+      provider_subject_hash: providerSubjectHash,
+      display_label: 'TRY앵글 · Google owner',
+      role: 'owner',
+    })
+    .select('id,display_label,role')
+    .single();
+  if (error || !data) return null;
+  return {
+    accountId: data.id as string,
+    adminId: data.display_label as string,
+    displayLabel: data.display_label as string,
+    role: data.role as AdminIdentity['role'],
+    authProvider: 'google' as const,
+  } satisfies AdminIdentity;
 }
 
 export async function linkGoogleAdminAccount(owner: AdminIdentity, googleSubject: string) {

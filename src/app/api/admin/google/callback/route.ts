@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { findActiveAdminAccount, findActiveAdminAccountById } from '@/lib/admin-auth';
 import {
   createGoogleMfaCookie,
+  createGoogleBootstrapMfaCookie,
   googleClient,
   googleConfig,
   GOOGLE_MFA_COOKIE,
@@ -57,7 +58,21 @@ export async function GET(req: NextRequest) {
     }
 
     const identity = await findActiveAdminAccount('google', subject);
-    if (!identity) return redirectWithCookieCleared(req, '/admin/login?google_error=not_allowed');
+    if (!identity) {
+      const { count, error: countError } = await db()
+        .from('admin_accounts')
+        .select('id', { count: 'exact', head: true });
+      if (countError || (count ?? 0) !== 0) return redirectWithCookieCleared(req, '/admin/login?google_error=not_allowed');
+      const response = redirectWithCookieCleared(req, '/admin/login?google_mfa=1&google_bootstrap=1');
+      response.cookies.set(GOOGLE_MFA_COOKIE, createGoogleBootstrapMfaCookie(subject), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 5 * 60,
+      });
+      return response;
+    }
     const response = redirectWithCookieCleared(req, '/admin/login?google_mfa=1');
     response.cookies.set(GOOGLE_MFA_COOKIE, createGoogleMfaCookie(identity), {
       httpOnly: true,
