@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { isLoggedIn } from '@/lib/admin-auth';
+import { currentAdminIdentity } from '@/lib/admin-auth';
 import { countNewInquiries, countOpenInquiries, countInquiriesWithMemo, listActors, listOpenWeekCountByCohort } from '@/lib/admin-data';
 import {
   STATUS_SUMMARY_LABEL,
@@ -21,9 +21,10 @@ export const metadata = { title: '캐릭터포지셔닝 관리 · 어드민', ro
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; google_link?: string }>;
 }) {
-  if (!(await isLoggedIn())) redirect('/admin/login');
+  const identity = await currentAdminIdentity();
+  if (!identity) redirect('/admin/login');
 
   const [actors, newInquiries, openInquiries, memoInquiries, openWeeksByCohort, sp] = await Promise.all([
     listActors(),
@@ -84,6 +85,9 @@ export default async function Page({
           </Link>
           <Link href="/admin/inquiries?view=open" className={`${styles.btn} ${styles.ghost}`}>진행 중 {openInquiries}</Link>
           <Link href="/admin/inquiries?view=followup" className={`${styles.btn} ${styles.ghost}`}>후속 기록 {memoInquiries}</Link>
+          {identity.role === 'owner' && process.env.GOOGLE_ADMIN_LOGIN_ENABLED === 'true' && (
+            <a href="/api/admin/google/start?mode=link" className={`${styles.btn} ${styles.ghost}`}>Google 계정 연결</a>
+          )}
           <form action={revokeOtherSessions}>
             <button className={`${styles.btn} ${styles.ghost}`} type="submit">다른 기기 로그아웃</button>
           </form>
@@ -94,6 +98,14 @@ export default async function Page({
           </form>
         </div>
       </header>
+
+      {sp.google_link && (
+        <p className={sp.google_link === 'revoked' ? styles.error : styles.loginNotice}>
+          {sp.google_link === 'success' && '본인 Google 계정을 관리자 허용 목록에 연결했습니다.'}
+          {sp.google_link === 'existing' && '이 Google 계정은 이미 관리자 허용 목록에 연결되어 있습니다.'}
+          {sp.google_link === 'revoked' && '해지된 Google 계정은 다시 연결할 수 없습니다.'}
+        </p>
+      )}
 
       <AdminTabs active="class" />
 

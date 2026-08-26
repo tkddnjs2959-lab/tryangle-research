@@ -113,6 +113,11 @@
 }
 .loginTitle { font-size: 20px; font-weight: 800; margin: 10px 0 24px; }
 .loginForm { display: grid; gap: 10px; }
+.loginDivider { display: flex; align-items: center; gap: 10px; color: var(--sub); font-size: 12px; margin: 4px 0; }
+.loginDivider::before, .loginDivider::after { content: ''; height: 1px; flex: 1; background: var(--line); }
+.googleBtn { display: block; text-decoration: none; background: #fff; color: var(--navy); border: 1px solid var(--line); }
+.loginNotice { margin: 0 0 10px; padding: 10px 12px; border-radius: 9px; background: #edf8f0; color: #23633a; font-size: 13px; line-height: 1.55; }
+.loginCancel { color: var(--sub); font-size: 12px; text-decoration: none; }
 
 /* ---------- 탭 ---------- */
 .tabs { display: flex; gap: 6px; margin-bottom: 18px; }

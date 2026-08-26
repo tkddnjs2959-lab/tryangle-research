@@ -203,6 +203,10 @@ npm run dev
    | `ADMIN_LOGIN_ID` | ✅ | 관리자 개인 아이디 |
    | `ADMIN_TOTP_SECRET` | ✅ | 인증 앱에 등록하는 base32 비밀키 |
    | `ADMIN_MFA_REQUIRED` | ✅ | 인증 앱 등록 확인 후 `true` |
+   | `GOOGLE_ADMIN_LOGIN_ENABLED` | 관리자 Google 로그인 | 본인 계정 연결 준비 후 `true` |
+   | `GOOGLE_ADMIN_CLIENT_ID` | 관리자 Google 로그인 | Google Cloud OAuth 웹 클라이언트 ID |
+   | `GOOGLE_ADMIN_CLIENT_SECRET` | 관리자 Google 로그인 | 서버 전용, 공개 금지 |
+   | `GOOGLE_ADMIN_REDIRECT_URI` | 관리자 Google 로그인 | `https://app.tryangle-official.co.kr/api/admin/google/callback` |
    | `SESSION_SECRET` | ✅ | 긴 랜덤 문자열 |
    | `CONSULTATION_ENCRYPTION_KEY` | ✅ | 상담 원문 AES-256-GCM 암호화 키 |
    | `KAKAO_REST_API_KEY` | 배우 로그인용 | |

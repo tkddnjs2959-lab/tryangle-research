@@ -88,6 +88,16 @@ export async function findActiveAdminAccount(
   return identityFromRow(data as AdminAccountRow);
 }
 
+export async function findActiveAdminAccountById(accountId: string): Promise<AdminIdentity | null> {
+  const { data, error } = await db()
+    .from('admin_accounts')
+    .select('id,auth_provider,display_label,role,active,revoked_at')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (error || !data || !data.active || data.revoked_at) return null;
+  return identityFromRow(data as AdminAccountRow);
+}
+
 /**
  * 기존 환경변수 로그인은 최초 1회에 한해 owner 계정으로 등록한다.
  * 허용 목록이 생긴 뒤에는 환경변수 변경만으로 새 관리자를 만들 수 없다.

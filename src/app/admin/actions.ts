@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createHash } from 'node:crypto';
-import { checkAdminId, checkPassword, createSession, currentAdminIdentity, destroySession, ensureLegacyAdminAccount, revokeOtherAdminSessions, type AdminRole } from '@/lib/admin-auth';
+import { checkAdminId, checkPassword, createSession, currentAdminIdentity, destroySession, ensureLegacyAdminAccount, findActiveAdminAccountById, revokeOtherAdminSessions, type AdminRole } from '@/lib/admin-auth';
 import { isMfaRequired, verifyAdminTotp } from '@/lib/admin-mfa';
 import { getActorAccountById, getActorKakaoRefreshToken, getActorNotificationToken, unlinkActorFromKakao } from '@/lib/actor-account';
 import { refreshKakaoAccessToken, sendKakaoMemo, unlinkKakaoUser } from '@/lib/kakao-login';
@@ -52,6 +52,8 @@ import {
 import { db } from '@/lib/supabase';
 import type { Category, Gender } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
+import { cookies } from 'next/headers';
+import { GOOGLE_MFA_COOKIE, readGoogleMfaCookie } from '@/lib/admin-google-auth';
 
 async function requireAdmin(roles: readonly AdminRole[] = ['owner', 'admin']) {
   const identity = await currentAdminIdentity();
@@ -107,6 +109,37 @@ export async function login(_prev: string | null, form: FormData): Promise<strin
     targetId: identity.accountId,
     summary: '관리자가 로그인했습니다.',
     detail: { provider: identity.authProvider, role: identity.role },
+  });
+  redirect('/admin');
+}
+
+export async function completeGoogleLogin(_prev: string | null, form: FormData): Promise<string | null> {
+  const jar = await cookies();
+  const pending = readGoogleMfaCookie(jar.get(GOOGLE_MFA_COOKIE)?.value);
+  if (!pending) return 'Google 로그인 확인 시간이 만료되었습니다. 다시 시작해주세요.';
+  const identity = await findActiveAdminAccountById(pending.accountId);
+  if (!identity || identity.authProvider !== 'google') return '허용된 Google 관리자 계정이 아닙니다.';
+  if (!process.env.ADMIN_TOTP_SECRET?.trim()) return '관리자 인증 앱 설정이 완료되지 않았습니다.';
+
+  const ip = await clientIp();
+  const locked = await lockedSeconds(ip);
+  if (locked !== null) return `로그인 시도가 너무 많습니다. ${humanizeSeconds(locked)} 후에 다시 시도해주세요.`;
+  const totp = String(form.get('totp') ?? '').trim();
+  if (!verifyAdminTotp(totp)) {
+    const lockedFor = await recordFailure(ip);
+    if (lockedFor !== null) return `인증 번호를 여러 번 틀렸습니다. ${humanizeSeconds(lockedFor)} 동안 잠깁니다.`;
+    return '인증 앱 번호가 올바르지 않습니다.';
+  }
+
+  await clearFailures(ip);
+  jar.delete(GOOGLE_MFA_COOKIE);
+  await createSession(identity);
+  await audit({
+    action: 'admin_login',
+    targetType: 'admin',
+    targetId: identity.accountId,
+    summary: 'Google 관리자가 로그인했습니다.',
+    detail: { provider: 'google' },
   });
   redirect('/admin');
 }
