@@ -58,7 +58,7 @@ export function googleConfig(origin: string) {
   const clientSecret = process.env.GOOGLE_ADMIN_CLIENT_SECRET?.trim();
   const redirectUri = process.env.GOOGLE_ADMIN_REDIRECT_URI?.trim()
     || `${origin}/api/admin/google/callback`;
-  if (!clientId || !clientSecret || !process.env.ADMIN_TOTP_SECRET?.trim()) {
+  if (!clientId || !clientSecret) {
     throw new Error('Google 관리자 로그인 또는 인증 앱 설정이 완료되지 않았습니다.');
   }
   return { clientId, clientSecret, redirectUri };

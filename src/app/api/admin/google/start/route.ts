@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { currentAdminIdentity } from '@/lib/admin-auth';
 import {
   createGoogleOAuthIntent,
   googleClient,
@@ -12,14 +11,12 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   if (!isGoogleAdminLoginEnabled()) return new NextResponse(null, { status: 404 });
-  const mode = req.nextUrl.searchParams.get('mode') === 'link' ? 'link' : 'login';
-  const identity = mode === 'link' ? await currentAdminIdentity() : null;
-  if (mode === 'link' && identity?.role !== 'owner') return new NextResponse(null, { status: 403 });
+  if (req.nextUrl.searchParams.get('mode') === 'link') return new NextResponse(null, { status: 403 });
 
   try {
     const config = googleConfig(req.nextUrl.origin);
     const client = googleClient(config);
-    const { intent, cookieValue } = createGoogleOAuthIntent(mode, identity?.accountId ?? null);
+    const { intent, cookieValue } = createGoogleOAuthIntent('login', null);
     const url = client.generateAuthUrl({
       access_type: 'online',
       scope: ['openid', 'email'],
