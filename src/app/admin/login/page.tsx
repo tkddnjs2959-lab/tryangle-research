@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import LoginForm, { GoogleMfaForm } from './LoginForm';
+import LoginForm from './LoginForm';
 import { isGoogleAdminLoginEnabled } from '@/lib/admin-google-auth';
 import styles from '../admin.module.css';
 
@@ -15,7 +15,7 @@ const GOOGLE_ERRORS: Record<string, string> = {
   failed: 'Google 계정 확인에 실패했습니다. 다시 시도해주세요.',
 };
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ google_mfa?: string; google_error?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ google_error?: string }> }) {
   if (await isLoggedIn()) redirect('/admin');
   const sp = await searchParams;
 
@@ -25,9 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ g
         <div className={styles.brand}>ARTIST BRANDING COMPANY TRY앵글</div>
         <h1 className={styles.loginTitle}>퍼스널 리서치 어드민</h1>
         {sp.google_error && <p className={styles.error}>{GOOGLE_ERRORS[sp.google_error] || GOOGLE_ERRORS.failed}</p>}
-        {sp.google_mfa === '1'
-          ? <GoogleMfaForm />
-          : <LoginForm googleEnabled={isGoogleAdminLoginEnabled()} />}
+        <LoginForm googleEnabled={isGoogleAdminLoginEnabled()} />
       </div>
     </main>
   );
