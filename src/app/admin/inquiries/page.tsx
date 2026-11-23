@@ -1,3 +1,4 @@
+import AdminTabs from '../AdminTabs';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentAdminIdentity } from '@/lib/admin-auth';
@@ -157,6 +158,7 @@ export default async function Page({
           <div className={styles.meta}>홈페이지 문의 폼으로 들어온 내용입니다</div>
         </div>
       </header>
+      <AdminTabs active="consultations" />
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>최근 24시간 신청 보호</h2>

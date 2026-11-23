@@ -24,7 +24,7 @@ export default async function CoachingAdminPage() {
       <header className={styles.topbar}>
         <div>
           <div className={styles.brand}>ARTIST BRANDING COMPANY TRY앵글</div>
-          <h1 className={styles.h1}>1:1 매체연기 코칭</h1>
+          <h1 className={styles.h1}>학생·등록</h1>
         </div>
         <div className={styles.topbarActions}>
           <form action={logout}>
