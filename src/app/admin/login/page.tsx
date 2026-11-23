@@ -22,8 +22,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ g
   return (
     <main className={styles.loginPage}>
       <div className={styles.loginBox}>
-        <div className={styles.brand}>ARTIST BRANDING COMPANY TRY앵글</div>
-        <h1 className={styles.loginTitle}>퍼스널 리서치 어드민</h1>
+        <div className={styles.brand}>JAUT 매체연기</div>
+        <h1 className={styles.loginTitle}>매체연기 어드민</h1>
         {sp.google_error && <p className={styles.error}>{GOOGLE_ERRORS[sp.google_error] || GOOGLE_ERRORS.failed}</p>}
         <LoginForm googleEnabled={isGoogleAdminLoginEnabled()} />
       </div>

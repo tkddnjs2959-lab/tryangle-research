@@ -629,6 +629,7 @@ export type CoachingStudentRow = {
   birthYear: number | null;
   gender: Gender;
   contact: string | null;
+  residence: string | null;
   note: string | null;
   status: string;
   createdAt: string;
@@ -645,7 +646,7 @@ export type CoachingStudentRow = {
 export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
   const { data, error } = await db()
     .from('coaching_students')
-    .select('id, name, birth_year, gender, contact, note, status, created_at, actor_id')
+    .select('id, name, birth_year, gender, contact, residence, note, status, created_at, actor_id')
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -667,6 +668,7 @@ export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
       birthYear: r.birth_year,
       gender: r.gender as Gender,
       contact: r.contact,
+      residence: r.residence,
       note: r.note,
       status: r.status,
       createdAt: r.created_at,
@@ -755,12 +757,14 @@ export async function createCoachingStudent(input: {
   birthYear: number | null;
   gender: Gender;
   contact: string | null;
+  residence: string | null;
 }) {
   const { error } = await db().from('coaching_students').insert({
     name: input.name,
     birth_year: input.birthYear,
     gender: input.gender,
     contact: input.contact,
+    residence: input.residence,
   });
   if (error) throw new Error(error.message);
 }

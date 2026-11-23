@@ -17,12 +17,13 @@ export default function AddCoachingStudentForm() {
 
   return (
     <section className={styles.block}>
-      <h2 className={styles.blockTitle}>1:1 매체연기 코칭 학생 등록</h2>
+      <h2 className={styles.blockTitle}>매체연기 학생 등록</h2>
       <p className={styles.blockHint}>연락처는 선택 입력입니다.</p>
       <form ref={ref} action={action} className={styles.addForm}>
         <input className={styles.input} name="name" placeholder="이름" required />
         <input className={styles.input} name="birthYear" placeholder="출생년도" inputMode="numeric" />
         <input className={styles.input} name="contact" placeholder="연락처 (선택)" />
+        <input className={styles.input} name="residence" placeholder="사는 곳 (예: 서울 성동구)" maxLength={120} />
         <select className={styles.input} name="gender" defaultValue="female">
           <option value="female">여</option>
           <option value="male">남</option>

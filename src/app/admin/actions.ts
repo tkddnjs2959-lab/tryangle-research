@@ -315,7 +315,9 @@ export async function addCoachingStudent(_prev: string | null, form: FormData): 
   const gender = (String(form.get('gender') ?? 'female') as Gender);
   const contact = String(form.get('contact') ?? '').trim() || null;
 
-  await createCoachingStudent({ name, birthYear, gender, contact });
+  const residence = String(form.get('residence') ?? '').trim();
+  if (residence.length > 120) return '사는 곳은 120자 이내로 입력해주세요.';
+  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null });
   revalidatePath('/admin/coaching');
   return null;
 }

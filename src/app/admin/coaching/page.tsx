@@ -23,7 +23,7 @@ export default async function CoachingAdminPage() {
     <main className={styles.page}>
       <header className={styles.topbar}>
         <div>
-          <div className={styles.brand}>ARTIST BRANDING COMPANY TRY앵글</div>
+          <div className={styles.brand}>JAUT 매체연기</div>
           <h1 className={styles.h1}>학생·등록</h1>
         </div>
         <div className={styles.topbarActions}>
@@ -49,6 +49,7 @@ export default async function CoachingAdminPage() {
                 <strong>{s.name}</strong>
                 <span className={styles.meta}>
                   {[s.birthYear && `${s.birthYear}년생`, s.gender === 'female' ? '여' : '남', s.contact]
+                    .concat(s.residence ? [`사는 곳 ${s.residence}`] : [])
                     .filter(Boolean)
                     .join(' · ')}
                 </span>

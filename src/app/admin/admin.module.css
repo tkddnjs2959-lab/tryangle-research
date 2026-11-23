@@ -628,3 +628,98 @@
 .analysisSection li + li { margin-top: 3px; }
 .actionForm { grid-template-columns: 180px 1fr 150px auto; }
 @media (max-width: 640px) { .consultForm, .actionForm { grid-template-columns: 1fr; } .fullField, .consent { grid-column: auto; } }
+
+/* Unified operations workspace */
+.page {
+  max-width: 1480px;
+  min-height: 100vh;
+  padding: 42px clamp(18px, 4vw, 64px) 96px;
+  background: #f8f5f4;
+  color: #211b20;
+}
+.topbar {
+  align-items: center;
+  margin-bottom: 34px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e7dedf;
+}
+.h1 { font-size: clamp(27px, 3vw, 39px); letter-spacing: -.055em; }
+.brand { color: #b8316a; letter-spacing: .19em; }
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 7px;
+  margin: 0 0 32px;
+  border: 1px solid #e9dfe1;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 35px #211b2009;
+}
+.tab { flex: 1 1 auto; min-width: 115px; text-align: center; border: 0; border-radius: 11px; padding: 13px 12px; color: #70646b; font-weight: 700; text-decoration: none; transition: background .18s, color .18s; }
+.tab:hover { background: #f9eef2; color: #8d2752; }
+.tabOn, .tabOn:hover { background: #211b20; color: #fff; }
+.block, .resp, .cohortOverview, .summary {
+  border-color: #e8dddf;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px #211b2008;
+}
+.btn, .primary { background: #211b20; border-color: #211b20; border-radius: 10px; }
+.btn:hover, .primary:hover { background: #ab3266; border-color: #ab3266; }
+.ghost { color: #211b20; background: #fff; border: 1px solid #e8dddf; }
+.input, .searchInput { border-color: #e8dddf; border-radius: 10px; }
+.input:focus, .searchInput:focus { border-color: #b8316a; outline-color: #e874a3; }
+@media (max-width: 700px) {
+  .page { padding: 24px 16px 64px; }
+  .topbar { gap: 16px; flex-wrap: wrap; }
+  .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tab { min-width: 0; }
+}
+.tab {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--sub);
+  padding: 9px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.tab:hover { border-color: var(--sky-dot); }
+.tabOn { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+
+/* JAUT identity and final navigation treatment */
+.page .brand, .loginBox .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #211b20;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .11em;
+}
+.page .brand::before, .loginBox .brand::before {
+  content: 'J';
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 8px 8px 8px 2px;
+  background: #211b20;
+  color: #f096b8;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: -.08em;
+}
+.page .tab {
+  flex: 1 1 auto;
+  min-width: 115px;
+  border: 0;
+  border-radius: 11px;
+  padding: 13px 12px;
+  text-align: center;
+  color: #70646b;
+}
+.page .tab:hover { background: #f9eef2; color: #8d2752; }
+.page .tabOn, .page .tabOn:hover { background: #211b20; color: #fff; }
