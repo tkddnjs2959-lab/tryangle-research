@@ -4,7 +4,7 @@ import { isLoggedIn } from '@/lib/admin-auth';
 import { listCoachingStudents } from '@/lib/admin-data';
 import { CATEGORY_LABEL } from '@/lib/types';
 import { WEEK_COUNT } from '@/lib/weeks';
-import { logout, removeCoachingStudent, saveCoachingNote, unlinkCoaching } from '../actions';
+import { logout, unlinkCoaching } from '../actions';
 import AdminTabs from '../AdminTabs';
 import ConfirmButton from '../ConfirmButton';
 import styles from '../admin.module.css';
@@ -56,15 +56,6 @@ export default async function CoachingAdminPage() {
                     .join(' · ')}
                 </span>
                 {s.actor && <span className={styles.linkTag}>퍼스널 브랜딩 연동</span>}
-                <form action={removeCoachingStudent}>
-                  <input type="hidden" name="id" value={s.id} />
-                  <ConfirmButton
-                    className={styles.del}
-                    message={`${s.name} 학생을 보관 처리합니다. 목록에서 사라지지만 기록은 남습니다.`}
-                  >
-                    보관
-                  </ConfirmButton>
-                </form>
               </div>
 
               {s.actor && (
@@ -111,19 +102,6 @@ export default async function CoachingAdminPage() {
                   </div>
                 </div>
               )}
-              <form action={saveCoachingNote} className={styles.noteForm}>
-                <input type="hidden" name="id" value={s.id} />
-                <textarea
-                  className={styles.noteArea}
-                  name="note"
-                  defaultValue={s.note ?? ''}
-                  placeholder="코칭 기록 · 메모"
-                  rows={3}
-                />
-                <button className={`${styles.btn} ${styles.sm}`} type="submit">
-                  메모 저장
-                </button>
-              </form>
             </li>
           ))}
         </ul>
