@@ -47,9 +47,11 @@ export default async function CoachingAdminPage() {
             <li key={s.id} className={styles.resp}>
               <div className={styles.respHead}>
                 <strong>{s.name}</strong>
+                {s.status === 'prospective' && <span className={styles.linkTag}>예비생</span>}
                 <span className={styles.meta}>
                   {[s.birthYear && `${s.birthYear}년생`, s.gender === 'female' ? '여' : '남', s.contact]
                     .concat(s.residence ? [`사는 곳 ${s.residence}`] : [])
+                    .concat(s.school ? [`학교 ${s.school}`] : [])
                     .filter(Boolean)
                     .join(' · ')}
                 </span>
