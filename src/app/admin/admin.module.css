@@ -723,3 +723,15 @@
 }
 .page .tab:hover { background: #f9eef2; color: #8d2752; }
 .page .tabOn, .page .tabOn:hover { background: #211b20; color: #fff; }
+
+.page .studentFilters { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin:22px 0 16px; padding:16px 18px; background:#fff; border:1px solid #e8dddf; border-radius:14px; }
+.studentFilters label { display:grid; gap:5px; font-size:12px; font-weight:700; color:#70646b; }
+.studentFilters select { min-width:130px; padding:9px 12px; border:1px solid #e8dddf; border-radius:9px; font:inherit; background:#fff; }
+.studentFilters span { margin-left:auto; font-weight:800; color:#211b20; }
+.page .respList { display:grid; grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:12px; align-items:stretch; }
+.page .resp { min-width:0; margin:0; padding:17px; border:1px solid #e8dddf; border-radius:14px; background:#fff; }
+.page .respHead { display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
+.page .respHead .meta { overflow-wrap:anywhere; line-height:1.55; }
+.page .studentActions { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:14px; padding-top:11px; border-top:1px solid #f0e9ea; }
+.page .studentActions form { margin-left:auto; }
+@media (max-width:560px) { .page .respList { grid-template-columns:repeat(2,minmax(0,1fr)); } .page .resp { padding:13px; } }
