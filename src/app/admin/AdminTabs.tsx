@@ -1,4 +1,8 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import styles from './admin.module.css';
 
 const tabs = [
@@ -11,10 +15,16 @@ const tabs = [
 ] as const;
 
 export default function AdminTabs({ active }: { active: typeof tabs[number][0] | 'class' }) {
+  const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  useEffect(() => setPendingHref(null), [pathname]);
+
   return <nav className={styles.tabs} aria-label="관리 업무" style={{ flexWrap: 'wrap' }}>
     {tabs.map(([id, href, label]) => <Link key={id} href={href}
       aria-current={id === active ? 'page' : undefined}
-      className={`${styles.tab} ${id === active ? styles.tabOn : ''}`}>{label}</Link>)}
+      aria-busy={pendingHref === href || undefined}
+      onClick={() => { if (pathname !== href) setPendingHref(href); }}
+      className={`${styles.tab} ${id === active ? styles.tabOn : ''} ${pendingHref === href ? styles.tabPending : ''}`}>{label}</Link>)}
   </nav>;
 }
 

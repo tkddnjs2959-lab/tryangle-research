@@ -644,24 +644,133 @@ export type CoachingStudentRow = {
   } | null;
 };
 
-export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
-  const { data, error } = await db()
+export type CoachingStudentFilters = {
+  gender?: Gender;
+  age?: 'under20' | '20s' | '30s' | '40plus' | 'unknown';
+  page?: number;
+};
+
+function inferredBirthYear(name: string, birthYear: number | null, currentYear: number): number | null {
+  if (birthYear) return birthYear;
+  const twoDigitYear = name.match(/\((\d{2})\)$/)?.[1];
+  if (!twoDigitYear) return null;
+  const year = Number(twoDigitYear);
+  return (year <= currentYear % 100 ? 2000 : 1900) + year;
+}
+
+export type CoachingStudentPage = {
+  students: CoachingStudentRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type CoachingStudentDbRow = {
+  id: string;
+  name: string;
+  birth_year: number | null;
+  gender: Gender;
+  contact: string | null;
+  residence: string | null;
+  school: string | null;
+  note: string | null;
+  status: string;
+  created_at: string;
+  actor_id: string | null;
+};
+
+const COACHING_STUDENT_PAGE_SIZE = 30;
+
+export async function listCoachingStudents(
+  filters: CoachingStudentFilters = {}
+): Promise<CoachingStudentPage> {
+  const page = Number.isInteger(filters.page) && (filters.page ?? 0) > 0 ? filters.page! : 1;
+  const pageSize = COACHING_STUDENT_PAGE_SIZE;
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize - 1;
+  const client = db();
+  let query = client
     .from('coaching_students')
-    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id')
-    .order('created_at', { ascending: false });
+    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id', { count: 'exact' })
+    .neq('status', 'archived');
 
-  if (error) throw new Error(error.message);
+  if (filters.gender) query = query.eq('gender', filters.gender);
+  const currentYear = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }).format(new Date()));
+  const year = currentYear;
 
-  // 연동된 배우만 읽는다 — 예전에는 전체 배우 목록을 끌어왔다.
-  const linkedIds = [
-    ...new Set(
-      (data ?? []).map((r) => r.actor_id as string | null).filter((v): v is string => Boolean(v))
-    ),
-  ];
-  const actors = await listActorsByIds(linkedIds);
-  const actorById = new Map(actors.map((a) => [a.id, a]));
+  let data: CoachingStudentDbRow[] = [];
+  let count = 0;
+  if (!filters.age) {
+    const result = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(start, end);
+    if (result.error) throw new Error(result.error.message);
+    data = result.data ?? [];
+    count = result.count ?? 0;
+  } else if (filters.age !== 'unknown') {
+    const minimumBirthYear = filters.age === 'under20' ? year - 19
+      : filters.age === '20s' ? year - 29
+        : filters.age === '30s' ? year - 39
+          : 1900;
+    const maximumBirthYear = filters.age === 'under20' ? 2100
+      : filters.age === '20s' ? year - 20
+        : filters.age === '30s' ? year - 30
+          : year - 40;
+    const [knownBirthYears, missingBirthYears] = await Promise.all([
+      query.gte('birth_year', minimumBirthYear).lte('birth_year', maximumBirthYear)
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .range(0, end),
+      client.from('coaching_students')
+        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id')
+        .neq('status', 'archived').is('birth_year', null)
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .limit(5000),
+    ]);
+    if (knownBirthYears.error || missingBirthYears.error) {
+      throw new Error((knownBirthYears.error || missingBirthYears.error)!.message);
+    }
+    const legacyMatches = ((missingBirthYears.data ?? []) as CoachingStudentDbRow[]).filter((row) => {
+      if (filters.gender && row.gender !== filters.gender) return false;
+      const birth = inferredBirthYear(row.name, null, currentYear);
+      if (!birth) return false;
+      const age = year - birth;
+      return filters.age === 'under20' ? age < 20
+        : filters.age === '20s' ? age >= 20 && age < 30
+          : filters.age === '30s' ? age >= 30 && age < 40
+            : age >= 40;
+    });
+    const allMatches = [
+      ...((knownBirthYears.data ?? []) as CoachingStudentDbRow[]),
+      ...legacyMatches,
+    ].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
+    count = (knownBirthYears.count ?? 0) + legacyMatches.length;
+    data = allMatches.slice(start, start + pageSize);
+  } else {
+    let batchQuery = client.from('coaching_students')
+      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id')
+      .neq('status', 'archived')
+      .is('birth_year', null);
+    if (filters.gender) batchQuery = batchQuery.eq('gender', filters.gender);
+    const result = await batchQuery.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(5000);
+    if (result.error) throw new Error(result.error.message);
+    const candidates = (result.data ?? []) as CoachingStudentDbRow[];
+    const unknownRows = candidates.filter((row) => inferredBirthYear(row.name, null, currentYear) === null);
+    count = unknownRows.length;
+    data = unknownRows.slice(start, start + pageSize);
+  }
 
-  return (data ?? []).map((r) => {
+  // 목록 카드에는 배우 이름과 상세 링크만 필요하므로 배우 기본 정보만 읽는다.
+  const linkedIds = [...new Set((data ?? [])
+    .map((row) => row.actor_id as string | null)
+    .filter((id): id is string => Boolean(id)))];
+  const { data: linkedActors, error: actorsError } = linkedIds.length
+    ? await db().from('actors').select('id, name').in('id', linkedIds)
+    : { data: [], error: null };
+  if (actorsError) throw new Error(actorsError.message);
+  const actorById = new Map((linkedActors ?? []).map((actor) => [actor.id, actor]));
+
+  const students = data.map((r) => {
     const actor = r.actor_id ? actorById.get(r.actor_id as string) : undefined;
     return {
       id: r.id,
@@ -674,22 +783,16 @@ export async function listCoachingStudents(): Promise<CoachingStudentRow[]> {
       note: r.note,
       status: r.status,
       createdAt: r.created_at,
-      actor: actor
-        ? {
-            id: actor.id,
-            name: actor.name,
-            cohort: actor.cohort,
-            openWeeks: actor.openWeeks,
-            surveys: actor.surveys.map((s) => ({
-              type: s.type,
-              n: s.n,
-              minN: s.minN,
-              met: s.met,
-            })),
-          }
-        : null,
+      actor: actor ? {
+        id: actor.id,
+        name: actor.name,
+        cohort: null,
+        openWeeks: [],
+        surveys: [],
+      } : null,
     };
   });
+  return { students, total: count ?? 0, page, pageSize };
 }
 
 /** 배우 상세에서 연동 버튼이 눌렸을 때 — 이미 연동돼 있으면 그 학생을 그대로 쓴다. */
@@ -836,17 +939,57 @@ function mapSession(r: any, transcript: any, analyses: any[], actionItemCount: n
 
 export async function listConsultationSessions(actorId: string): Promise<ConsultationSessionRow[]> {
   const supabase = db();
-  const { data, error } = await supabase.from('consultation_sessions').select('*').eq('actor_id', actorId).neq('status', 'archived').order('consulted_at', { ascending: false });
+  const { data, error } = await supabase.from('consultation_sessions')
+    .select('id,actor_id,consulted_at,consultation_type,duration_seconds,counselor_name,source,status,recording_path,consent_obtained_at,retention_until,recording_deleted_at,created_at')
+    .eq('actor_id', actorId)
+    .neq('status', 'archived')
+    .order('consulted_at', { ascending: false });
   if (error) throw new Error(error.message);
-  return Promise.all((data ?? []).map(async (r: any) => {
-    const [t, a, items] = await Promise.all([
-      supabase.from('consultation_transcripts').select('id,created_at,updated_at,retention_until,deleted_at').eq('session_id', r.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('consultation_analyses').select('*').eq('session_id', r.id).order('created_at', { ascending: false }),
-      supabase.from('consultation_action_items').select('id', { count: 'exact', head: true }).eq('session_id', r.id).neq('status', 'done').neq('status', 'cancelled'),
-    ]);
-    if (t.error || a.error || items.error) throw new Error((t.error || a.error || items.error)!.message);
-    return mapSession(r, t.data, a.data ?? [], items.count ?? 0);
-  }));
+  const sessions = data ?? [];
+  if (sessions.length === 0) return [];
+
+  const sessionIds = sessions.map((session) => session.id as string);
+  const [transcripts, analyses, actionItems] = await Promise.all([
+    supabase.from('consultation_transcripts')
+      .select('id,session_id,created_at,updated_at,retention_until,deleted_at')
+      .in('session_id', sessionIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false }),
+    supabase.from('consultation_analyses')
+      .select('id,session_id,model,prompt_version,analysis_version,summary,structured_result,input_hash,status,reviewed_at,reviewed_by,created_at')
+      .in('session_id', sessionIds)
+      .order('created_at', { ascending: false }),
+    supabase.from('consultation_action_items')
+      .select('session_id')
+      .in('session_id', sessionIds)
+      .neq('status', 'done')
+      .neq('status', 'cancelled'),
+  ]);
+  if (transcripts.error || analyses.error || actionItems.error) {
+    throw new Error((transcripts.error || analyses.error || actionItems.error)!.message);
+  }
+
+  const transcriptBySession = new Map<string, any>();
+  for (const transcript of transcripts.data ?? []) {
+    if (!transcriptBySession.has(transcript.session_id)) transcriptBySession.set(transcript.session_id, transcript);
+  }
+  const analysesBySession = new Map<string, any[]>();
+  for (const analysis of analyses.data ?? []) {
+    const rows = analysesBySession.get(analysis.session_id) ?? [];
+    rows.push(analysis);
+    analysesBySession.set(analysis.session_id, rows);
+  }
+  const actionCountsBySession = new Map<string, number>();
+  for (const item of actionItems.data ?? []) {
+    actionCountsBySession.set(item.session_id, (actionCountsBySession.get(item.session_id) ?? 0) + 1);
+  }
+
+  return sessions.map((session: any) => mapSession(
+    session,
+    transcriptBySession.get(session.id) ?? null,
+    analysesBySession.get(session.id) ?? [],
+    actionCountsBySession.get(session.id) ?? 0,
+  ));
 }
 
 export async function getConsultationSession(sessionId: string): Promise<ConsultationSessionRow | null> {

@@ -723,6 +723,7 @@
 }
 .page .tab:hover { background: #f9eef2; color: #8d2752; }
 .page .tabOn, .page .tabOn:hover { background: #211b20; color: #fff; }
+.page .tabPending { opacity: .62; cursor: progress; }
 
 .page .studentFilters { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin:22px 0 16px; padding:16px 18px; background:#fff; border:1px solid #e8dddf; border-radius:14px; }
 .studentFilters label { display:grid; gap:5px; font-size:12px; font-weight:700; color:#70646b; }

@@ -182,19 +182,16 @@ async function verifiedIdentity(): Promise<AdminIdentity | null> {
     if (!safeEqual(signature, sign(`${token}.${expires}`))) return null;
     const { data, error } = await db()
       .from('admin_sessions')
-      .select('token_hash,last_seen_at,admin_account_id')
+      .select('token_hash,last_seen_at,admin_account_id,admin_accounts!inner(id,auth_provider,display_label,role,active,revoked_at)')
       .eq('token_hash', privacyHash(token))
       .is('revoked_at', null)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
     if (error || !data?.admin_account_id) return null;
 
-    const { data: account, error: accountError } = await db()
-      .from('admin_accounts')
-      .select('id,auth_provider,display_label,role,active,revoked_at')
-      .eq('id', data.admin_account_id)
-      .maybeSingle();
-    if (accountError || !account || !account.active || account.revoked_at) {
+    const account = data.admin_accounts as AdminAccountRow | AdminAccountRow[] | null;
+    const accountRow = Array.isArray(account) ? account[0] : account;
+    if (!accountRow || !accountRow.active || accountRow.revoked_at) {
       await db().from('admin_sessions').update({ revoked_at: new Date().toISOString() }).eq('token_hash', privacyHash(token));
       return null;
     }
@@ -206,7 +203,7 @@ async function verifiedIdentity(): Promise<AdminIdentity | null> {
     if (Date.now() - lastSeen > 5 * 60 * 1000) {
       await db().from('admin_sessions').update({ last_seen_at: new Date().toISOString() }).eq('token_hash', privacyHash(token));
     }
-    return identityFromRow(account as AdminAccountRow);
+    return identityFromRow(accountRow as AdminAccountRow);
   } catch {
     return null;
   }
