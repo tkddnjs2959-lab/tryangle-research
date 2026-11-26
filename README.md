@@ -18,6 +18,9 @@
 - 다른 컴퓨터에서 시작할 때는 기존 변경을 보존한 뒤 `git switch main`과 `git pull --ff-only origin main`을 먼저 실행한다.
 - 변경은 `main`에 커밋·푸시하고 Vercel Git 자동 배포로 반영한다. 커밋하지 않은 작업 폴더를 CLI로 직접 배포하지 않는다.
 - 확정 운영본은 `admin-final-YYYY-MM-DD` 태그로 남긴다. 태그는 복구용이며 후속 작업은 항상 최신 `main`에서 한다.
+- 새 컴퓨터나 새 Codex 작업은 `powershell -ExecutionPolicy Bypass -File scripts/sync-main.ps1`로 시작한다. 변경 파일이 있으면 이 스크립트가 중단되어 기존 작업을 덮어쓰지 않는다.
+- Vercel 프로덕션 빌드는 `scripts/assert-production-source.mjs`가 GitHub `main` 배포인지 검사한다. 과거 브랜치나 로컬 CLI 직접 배포는 빌드 단계에서 차단한다.
+- 저장소 전체 작업 규칙은 `AGENTS.md`에 있으며, 새 Codex 세션은 수정 전에 반드시 따른다.
 
 ## Supabase 프로젝트
 
