@@ -19,6 +19,7 @@ These rules apply to this entire repository, on every computer and in every Code
 - Do not move the production alias to an older deployment unless the user explicitly requests a rollback.
 
 The `prebuild` guard in `scripts/assert-production-source.mjs` intentionally rejects Vercel production builds that are not GitHub deployments from `main`.
+Vercel's project-level Ignored Build Step also requires a Git clone (`.git`), GitHub provider, and `main` ref for production. This is an external safety gate that still applies when an old checkout does not contain the repository guard script. Do not remove or weaken it.
 
 ## Product invariants
 

@@ -20,6 +20,7 @@
 - 확정 운영본은 `admin-final-YYYY-MM-DD` 태그로 남긴다. 태그는 복구용이며 후속 작업은 항상 최신 `main`에서 한다.
 - 새 컴퓨터나 새 Codex 작업은 `powershell -ExecutionPolicy Bypass -File scripts/sync-main.ps1`로 시작한다. 변경 파일이 있으면 이 스크립트가 중단되어 기존 작업을 덮어쓰지 않는다.
 - Vercel 프로덕션 빌드는 `scripts/assert-production-source.mjs`가 GitHub `main` 배포인지 검사한다. 과거 브랜치나 로컬 CLI 직접 배포는 빌드 단계에서 차단한다.
+- Vercel 프로젝트의 `Ignored Build Step`도 Git clone의 GitHub `main` 프로덕션 배포만 허용한다. 이 외부 차단은 오래된 컴퓨터에 최신 스크립트가 없어도 적용된다.
 - 저장소 전체 작업 규칙은 `AGENTS.md`에 있으며, 새 Codex 세션은 수정 전에 반드시 따른다.
 
 ## Supabase 프로젝트
