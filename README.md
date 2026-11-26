@@ -1,4 +1,4 @@
-# TRY앵글 퍼스널 리서치 — 백엔드
+# JAUT 매체연기 어드민 · TRYANGLE 리서치 백엔드
 
 배우 퍼스널 브랜딩용 이미지/퍼스널리티 리서치 수집·집계 시스템.
 
@@ -7,6 +7,17 @@
 > 진행 상황은 [작업 기록](#작업-기록)에 이어서 적는다. 다른 PC·다른 AI 세션이
 > 이 파일만 읽고 이어받을 수 있어야 한다. 줄 단위 diff 는 `git log` 에 맡긴다.
 > (홈페이지 저장소는 `tryangle-homepage/README.md` 가 같은 역할을 한다.)
+
+## 현재 운영 기준 — 2026-11-26
+
+- GitHub `main`이 유일한 운영 소스다. 운영 주소는 `https://app.tryangle-official.co.kr`이다.
+- 어드민 로그인 화면은 `JAUT 매체연기 / 매체연기 어드민`이며 **승인된 Google 계정 로그인만** 제공한다. 비밀번호 로그인 화면을 복구하지 않는다.
+- `/admin`은 `/admin/coaching`으로 이동하며 첫 화면은 `학생·등록`이다. 시간표·수업, 수납·미수, 비용·수익성, 월 마감, 상담문의 탭을 매체연기 운영 화면으로 사용한다.
+- 상담문의 화면 상단에서 홈페이지 방문을 오늘·어제·최근 7일로 확인한다. 한국 시간 기준, 브라우저별 하루 1회 익명 집계다.
+- `agent/ops-hardening-backup`과 과거 배포는 비교·복구용일 뿐 운영 기준이 아니다. 해당 브랜치에서 프로덕션 배포하지 않는다.
+- 다른 컴퓨터에서 시작할 때는 기존 변경을 보존한 뒤 `git switch main`과 `git pull --ff-only origin main`을 먼저 실행한다.
+- 변경은 `main`에 커밋·푸시하고 Vercel Git 자동 배포로 반영한다. 커밋하지 않은 작업 폴더를 CLI로 직접 배포하지 않는다.
+- 확정 운영본은 `admin-final-YYYY-MM-DD` 태그로 남긴다. 태그는 복구용이며 후속 작업은 항상 최신 `main`에서 한다.
 
 ## Supabase 프로젝트
 
@@ -199,14 +210,14 @@ npm run dev
    | --- | --- | --- |
    | `SUPABASE_URL` | ✅ | `https://xvpqjawckzdkzkohhbdg.supabase.co` |
    | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | **마스터 키.** `NEXT_PUBLIC_` 붙이지 말 것 |
-   | `ADMIN_PASSWORD` | ✅ | 어드민 로그인 비밀번호 |
-   | `ADMIN_LOGIN_ID` | ✅ | 관리자 개인 아이디 |
-   | `ADMIN_TOTP_SECRET` | ✅ | 인증 앱에 등록하는 base32 비밀키 |
-   | `ADMIN_MFA_REQUIRED` | ✅ | 인증 앱 등록 확인 후 `true` |
-   | `GOOGLE_ADMIN_LOGIN_ENABLED` | 관리자 Google 로그인 | 본인 계정 연결 준비 후 `true` |
-   | `GOOGLE_ADMIN_CLIENT_ID` | 관리자 Google 로그인 | Google Cloud OAuth 웹 클라이언트 ID |
-   | `GOOGLE_ADMIN_CLIENT_SECRET` | 관리자 Google 로그인 | 서버 전용, 공개 금지 |
-   | `GOOGLE_ADMIN_REDIRECT_URI` | 관리자 Google 로그인 | `https://app.tryangle-official.co.kr/api/admin/google/callback` |
+   | `ADMIN_PASSWORD` | 레거시·사용 안 함 | Google 전용 로그인 화면에서는 사용하지 않음 |
+   | `ADMIN_LOGIN_ID` | 레거시·사용 안 함 | Google 전용 로그인 화면에서는 사용하지 않음 |
+   | `ADMIN_TOTP_SECRET` | 선택 | Google 계정에 추가 MFA를 적용할 때만 사용 |
+   | `ADMIN_MFA_REQUIRED` | 선택 | 추가 MFA를 쓸 때만 `true` |
+   | `GOOGLE_ADMIN_LOGIN_ENABLED` | ✅ | 운영에서는 `true` |
+   | `GOOGLE_ADMIN_CLIENT_ID` | ✅ | Google Cloud OAuth 웹 클라이언트 ID |
+   | `GOOGLE_ADMIN_CLIENT_SECRET` | ✅ | 서버 전용, 공개 금지 |
+   | `GOOGLE_ADMIN_REDIRECT_URI` | ✅ | `https://app.tryangle-official.co.kr/api/admin/google/callback` |
    | `SESSION_SECRET` | ✅ | 긴 랜덤 문자열 |
    | `CONSULTATION_ENCRYPTION_KEY` | ✅ | 상담 원문 AES-256-GCM 암호화 키 |
    | `KAKAO_REST_API_KEY` | 배우 로그인용 | |
@@ -232,11 +243,13 @@ npm run dev
 아직 아무도 실물 화면을 못 봤다. 배포하면 이 순서로 한 번 훑는다.
 
 - [ ] `/` 안내 문구만 뜨는지 · `/robots.txt` 가 `Disallow: /` 인지
-- [ ] `/admin/login` 로그인 · **일부러 5번 틀려서 잠기는지** (15분 잠김)
-- [ ] `/admin` 배우 카드에 상태 뱃지와 할 일 문장이 뜨는지 · 이름/기수 검색
+- [ ] `/admin/login`에 Google 로그인 버튼만 표시되는지
+- [ ] 승인된 Google 계정은 로그인되고 허용 목록 밖 계정은 차단되는지
+- [ ] `/admin`이 `/admin/coaching`으로 이동하고 JAUT `학생·등록` 화면이 뜨는지
 - [ ] `/admin/<배우>` 응답 삭제 → 집계에서 빠지는지 → **복구**되는지
 - [ ] `/admin/<배우>` 변경 이력에 방금 한 일이 쌓이는지
 - [ ] `/admin/inquiries` 유입 경로 집계가 뜨는지
+- [ ] `/admin/inquiries` 상단에 오늘·어제·최근 7일 홈페이지 방문 수가 뜨는지
 - [ ] `/admin/inquiries` 유입·상담 전환 요약에서 문의 상태별 숫자가 맞는지
 - [ ] `/admin/inquiries` 유입 경로별 신규·연락·상담 완료 분류가 맞는지
 - [ ] `/admin/inquiries` 유입 경로별 연락률·상담률 계산이 맞는지
@@ -545,9 +558,10 @@ npm run dev
 - `DEEPSEEK_MODEL`: 사용할 모델(기본 `deepseek-chat`)
 - `DEEPSEEK_ANALYSIS_ENABLED`: 운영 환경에서 분석 기능을 켤 때 사용하는 설정값
 
-Vercel에서는 위 세 변수와 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`,
-`SESSION_SECRET`을 최소 Production에 등록한다. `SUPABASE_SERVICE_ROLE_KEY`,
-`ADMIN_PASSWORD`, `SESSION_SECRET`, `DEEPSEEK_API_KEY`, `KAKAO_PRIMARY_ADMIN_KEY`는
+Vercel에서는 위 세 변수와 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+Google 관리자 로그인 변수, `SESSION_SECRET`을 최소 Production에 등록한다.
+`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_ADMIN_CLIENT_SECRET`, `SESSION_SECRET`,
+`DEEPSEEK_API_KEY`, `KAKAO_PRIMARY_ADMIN_KEY`는
 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. Preview에서 실제 카카오/DeepSeek를 시험할 때는
 Preview 도메인을 Kakao Developers에 별도로 등록하고, 운영 키와 분리된 값을 사용한다.
 

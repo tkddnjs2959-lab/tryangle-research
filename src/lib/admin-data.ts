@@ -460,6 +460,41 @@ export async function setActorWeekOverride(
 // ---------------------------------------------------------------------
 // 홈페이지 상담 문의
 // ---------------------------------------------------------------------
+export type HomepageVisitStats = {
+  today: number;
+  yesterday: number;
+  last7Days: number;
+};
+
+function kstDate(offsetDays = 0): string {
+  const date = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+export async function getHomepageVisitStats(): Promise<HomepageVisitStats> {
+  const today = kstDate();
+  const yesterday = kstDate(-1);
+  const from = kstDate(-6);
+  const { data, error } = await db()
+    .from('homepage_daily_visits')
+    .select('visit_date, visitor_count')
+    .gte('visit_date', from)
+    .lte('visit_date', today);
+
+  if (error) throw new Error(error.message);
+
+  const counts = new Map(
+    (data ?? []).map((row) => [row.visit_date as string, Number(row.visitor_count) || 0])
+  );
+
+  return {
+    today: counts.get(today) ?? 0,
+    yesterday: counts.get(yesterday) ?? 0,
+    last7Days: [...counts.values()].reduce((sum, count) => sum + count, 0),
+  };
+}
+
 export type InquiryStatus = 'new' | 'contacted' | 'done' | 'archived';
 
 export type InquiryRow = {

@@ -607,6 +607,18 @@
 .inqForm select { padding: 6px 8px; font-size: 12px; }
 
 /* ---------- 상담 CRM ---------- */
+.visitBlock { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.visitBlock .blockHint { margin-bottom: 0; }
+.visitMetrics { display: grid; grid-template-columns: repeat(3, minmax(86px, 1fr)); gap: 8px; }
+.visitMetrics span { display: grid; gap: 4px; min-width: 86px; padding: 11px 14px; border-radius: 10px; background: #f9eef2; text-align: right; }
+.visitMetrics small { color: var(--sub); font-size: 11px; }
+.visitMetrics b { color: #b8316a; font-size: 21px; font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) {
+  .visitBlock { align-items: stretch; flex-direction: column; }
+  .visitMetrics { grid-template-columns: repeat(3, 1fr); }
+  .visitMetrics span { min-width: 0; text-align: center; }
+}
+
 .consultForm, .actionForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
 .consultForm label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: var(--sub); }
 .consultForm input, .consultForm select, .consultForm textarea, .actionForm input, .actionForm select { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 8px; font: inherit; background: #fff; }
@@ -725,7 +737,7 @@
 .page .tabOn, .page .tabOn:hover { background: #211b20; color: #fff; }
 .page .tabPending { opacity: .62; cursor: progress; }
 
-.page .studentFilters { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin:22px 0 16px; padding:16px 18px; background:#fff; border:1px solid #e8dddf; border-radius:14px; }
+.page .studentFilters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px; margin:22px 0 16px; padding:16px 18px; background:#fff; border:1px solid #e8dddf; border-radius:14px; }
 .studentFilters label { display:grid; gap:5px; font-size:12px; font-weight:700; color:#70646b; }
 .studentFilters select { min-width:130px; padding:9px 12px; border:1px solid #e8dddf; border-radius:9px; font:inherit; background:#fff; }
 .studentFilters span { margin-left:auto; font-weight:800; color:#211b20; }

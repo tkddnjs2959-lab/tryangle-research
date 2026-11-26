@@ -2,7 +2,7 @@ import AdminTabs from '../AdminTabs';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentAdminIdentity } from '@/lib/admin-auth';
-import { getInquirySecuritySummary, listInquiries, type InquiryStatus } from '@/lib/admin-data';
+import { getHomepageVisitStats, getInquirySecuritySummary, listInquiries, type InquiryStatus } from '@/lib/admin-data';
 import { clarityReport } from '@/lib/clarity-report';
 import { changeInquiryStatus, removeInquiry, saveInquiryMemo } from '../actions';
 import ConfirmButton from '../ConfirmButton';
@@ -81,9 +81,10 @@ export default async function Page({
   const identity = await currentAdminIdentity();
   if (!identity) redirect('/admin/login');
 
-  const [allInquiries, security, params] = await Promise.all([
+  const [allInquiries, security, visitStats, params] = await Promise.all([
     listInquiries(),
     getInquirySecuritySummary(),
+    getHomepageVisitStats(),
     searchParams,
   ]);
   const days = ['7', '30'].includes(params.days ?? '') ? Number(params.days) : null;
@@ -159,6 +160,18 @@ export default async function Page({
         </div>
       </header>
       <AdminTabs active="consultations" />
+
+      <section className={`${styles.block} ${styles.visitBlock}`}>
+        <div>
+          <h2 className={styles.blockTitle}>홈페이지 일자별 방문</h2>
+          <p className={styles.blockHint}>개인정보 없이 브라우저별 하루 1회, 한국 시간 기준으로 집계합니다.</p>
+        </div>
+        <div className={styles.visitMetrics}>
+          <span><small>오늘</small><b>{visitStats.today.toLocaleString('ko-KR')}</b></span>
+          <span><small>어제</small><b>{visitStats.yesterday.toLocaleString('ko-KR')}</b></span>
+          <span><small>최근 7일</small><b>{visitStats.last7Days.toLocaleString('ko-KR')}</b></span>
+        </div>
+      </section>
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>최근 24시간 신청 보호</h2>
