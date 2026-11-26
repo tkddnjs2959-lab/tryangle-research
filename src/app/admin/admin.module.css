@@ -567,6 +567,18 @@
 }
 
 /* ---------- 상담 문의 ---------- */
+.visitBlock { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.visitBlock .blockHint { margin-bottom: 0; }
+.visitMetrics { display: grid; grid-template-columns: repeat(3, minmax(86px, 1fr)); gap: 8px; }
+.visitMetrics span { display: grid; gap: 4px; min-width: 86px; padding: 11px 14px; border-radius: 10px; background: var(--sky-bg); text-align: right; }
+.visitMetrics small { color: var(--sub); font-size: 11px; }
+.visitMetrics b { color: var(--navy); font-size: 21px; font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) {
+  .visitBlock { align-items: stretch; flex-direction: column; }
+  .visitMetrics { grid-template-columns: repeat(3, 1fr); }
+  .visitMetrics span { min-width: 0; text-align: center; }
+}
+
 .countBadge {
   font-style: normal;
   font-size: 12px;

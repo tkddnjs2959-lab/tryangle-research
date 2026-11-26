@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
-import { listInquiries, type InquiryStatus } from '@/lib/admin-data';
+import { getHomepageVisitStats, listInquiries, type InquiryStatus } from '@/lib/admin-data';
 import { changeInquiryStatus, removeInquiry } from '../actions';
 import ConfirmButton from '../ConfirmButton';
 import styles from '../admin.module.css';
@@ -20,7 +20,10 @@ const STATUS_LABEL: Record<InquiryStatus, string> = {
 export default async function Page() {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
-  const inquiries = await listInquiries();
+  const [inquiries, visitStats] = await Promise.all([
+    listInquiries(),
+    getHomepageVisitStats(),
+  ]);
   const open = inquiries.filter((i) => i.status !== 'archived' && i.status !== 'done');
   const closed = inquiries.filter((i) => i.status === 'archived' || i.status === 'done');
 
@@ -46,6 +49,18 @@ export default async function Page() {
       </header>
 
       <AdminTabs active="inquiries" />
+
+      <section className={`${styles.block} ${styles.visitBlock}`}>
+        <div>
+          <h2 className={styles.blockTitle}>홈페이지 방문</h2>
+          <p className={styles.blockHint}>개인정보 없이 브라우저별 하루 1회로 집계합니다.</p>
+        </div>
+        <div className={styles.visitMetrics}>
+          <span><small>오늘</small><b>{visitStats.today.toLocaleString('ko-KR')}</b></span>
+          <span><small>어제</small><b>{visitStats.yesterday.toLocaleString('ko-KR')}</b></span>
+          <span><small>최근 7일</small><b>{visitStats.last7Days.toLocaleString('ko-KR')}</b></span>
+        </div>
+      </section>
 
       {sourceRank.length > 0 && (
         <section className={styles.block}>
