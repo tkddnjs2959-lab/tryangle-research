@@ -14,6 +14,7 @@ const localDate = (date: Date) => date.getFullYear() + '-' + String(date.getMont
 
 export default function ScheduleBoard({ month, sessions, students }: { month: string; sessions: Session[]; students: Student[] }) {
   const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState('');
   const [date, setDate] = useState(() => {
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
@@ -90,6 +91,38 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const next = new Date(Number(month.slice(0,4)), Number(month.slice(5)) - 1 + offset, 1);
     router.push('/admin/operations/schedule?month=' + next.getFullYear() + '-' + String(next.getMonth()+1).padStart(2,'0'));
   };
+  const grouped = new Map<string, Session[]>();
+  for (const item of sessions) {
+    const key = [item.lesson_date, item.start_time, item.end_time, item.teacher_name].join('|');
+    grouped.set(key, [...(grouped.get(key) ?? []), item]);
+  }
+  const lessons = [...grouped.entries()].map(([key, items]) => ({
+    key, items, date: items[0].lesson_date, start: items[0].start_time.slice(0,5),
+    end: items[0].end_time.slice(0,5), teacher: items[0].teacher_name,
+  }));
+  const hourLabels = Array.from(new Set([
+    ...Array.from({ length: 9 }, (_, index) => String(index + 13).padStart(2,'0') + ':00'),
+    ...lessons.map(lesson => lesson.start),
+  ])).sort();
+  const lessonCard = (lesson: typeof lessons[number], compact: boolean) => {
+    const first = names.get(lesson.items[0].student_id);
+    const pair = first?.lesson_plan?.startsWith('pair_');
+    const people = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생');
+    const label = pair ? '2:1' : '1:1';
+    return <div key={lesson.key} style={{ borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#211820', borderRadius:6, padding:compact ? 5 : 9, marginTop:5, fontSize:compact ? 12 : 14 }}>
+      <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'none', color:'inherit', border:0, cursor:'pointer', padding:0 }}>
+        <strong>{lesson.start}–{lesson.end}</strong>
+        <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</span>
+        <small>{label}</small>
+      </button>
+      {expanded === lesson.key && <div style={{ paddingTop:8 }}>
+        {lesson.items.map(item => <div key={item.id}>
+          {names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
+          <form action={removeSession}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
+        </div>)}
+      </div>}
+    </div>;
+  };
   const counts = new Map<string, number>();
   for (const item of sessions) counts.set(item.student_id, (counts.get(item.student_id) ?? 0) + 1);
   return <section className={styles.block}>
@@ -100,15 +133,27 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       {view === 'week' && <><button type="button" className={styles.btn} onClick={() => setWeek(value => value - 1)}>이전 주</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value + 1)}>다음 주</button></>}
     </div>
     <p>{teachers.map(name => <span key={name} style={{ color:colors[name], marginRight:16 }}>{name}</span>)}</p>
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:8 }}>
-      {days.map(day => <div key={day} style={{ border:'1px solid #666', padding:10, minHeight:100 }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }}>
-        <button type="button" onClick={() => { setDate(day); setWeek(0); }}>{day} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})</button>
-        {sessions.filter(item => item.lesson_date === day).sort((a,b) => a.start_time.localeCompare(b.start_time)).map(item => <div key={item.id} style={{ borderLeft:'4px solid ' + colors[item.teacher_name], padding:6, marginTop:6 }}>
-          <b>{item.start_time.slice(0,5)}–{item.end_time.slice(0,5)}</b><br/>{item.teacher_name}<br/>{names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
-          <form action={removeSession}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
+    {view === 'week' ? <div style={{ overflowX:'auto' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'64px repeat(7,minmax(145px,1fr))', minWidth:1100, borderTop:'1px solid #555', borderLeft:'1px solid #555' }}>
+        <div style={{ padding:8 }}>시간</div>
+        {days.map(day => <button type="button" key={day} onClick={() => setDate(day)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ background:date === day ? '#4c1835' : '#211820', color:'white', border:'1px solid #555', padding:8 }}>
+          {day.slice(5)} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})
+        </button>)}
+        {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
+          <div style={{ padding:8, borderTop:'1px solid #555' }}>{hour}</div>
+          {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:82, border:'1px solid #444', padding:5, background:date === day ? '#271c27' : undefined }}>
+            {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
+          </div>)}
         </div>)}
+      </div>
+    </div> : <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:4 }}>
+      {['월','화','수','목','금','토','일'].map(label => <strong key={label} style={{ textAlign:'center' }}>{label}</strong>)}
+      {Array.from({ length:(new Date(month + '-01T12:00:00').getDay()+6)%7 }, (_,index) => <div key={'blank-'+index}/>)}
+      {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:90, minWidth:0, border:'1px solid #555', padding:5, background:date === day ? '#271c27' : undefined }}>
+        <button type="button" onClick={() => setDate(day)} style={{ background:'none', border:0, color:'inherit' }}>{Number(day.slice(-2))} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})</button>
+        {lessons.filter(lesson => lesson.date === day).sort((a,b) => a.start.localeCompare(b.start)).map(lesson => lessonCard(lesson,true))}
       </div>)}
-    </div>
+    </div>}
     <h2>학생 검색·배정</h2>
     <input className={styles.input} aria-label="학생 검색" placeholder="학생 이름 검색" value={query} onChange={event => setQuery(event.target.value)}/>
     <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => event.dataTransfer.setData('text/plain',student.id)} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}회</button>)}</div>
