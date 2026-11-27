@@ -15,10 +15,10 @@
 - `/admin`은 `/admin/coaching`으로 이동하며 첫 화면은 `학생·등록`이다. 시간표·수업, 수납·미수, 비용·수익성, 월 마감, 상담문의 탭을 매체연기 운영 화면으로 사용한다.
 - 상담문의 화면 상단에서 홈페이지 방문을 오늘·어제·최근 7일로 확인한다. 한국 시간 기준, 브라우저별 하루 1회 익명 집계다.
 - `agent/ops-hardening-backup`과 과거 배포는 비교·복구용일 뿐 운영 기준이 아니다. 해당 브랜치에서 프로덕션 배포하지 않는다.
-- 다른 컴퓨터에서 시작할 때는 기존 변경을 보존한 뒤 `git switch main`과 `git pull --ff-only origin main`을 먼저 실행한다.
+- 모든 PC에서 GitHub `main`의 최신 SHA와 파일을 직접 조회한 뒤 `AGENTS.md`에 따라 반영한다.
 - 변경은 `main`에 커밋·푸시하고 Vercel Git 자동 배포로 반영한다. 커밋하지 않은 작업 폴더를 CLI로 직접 배포하지 않는다.
 - 확정 운영본은 `admin-final-YYYY-MM-DD` 태그로 남긴다. 태그는 복구용이며 후속 작업은 항상 최신 `main`에서 한다.
-- 새 컴퓨터나 새 Codex 작업은 `powershell -ExecutionPolicy Bypass -File scripts/sync-main.ps1`로 시작한다. 변경 파일이 있으면 이 스크립트가 중단되어 기존 작업을 덮어쓰지 않는다.
+- GitHub 직접 편집에는 로컬 동기화가 필요 없다. 전용 로컬 작업 폴더를 선택한 경우에만 `scripts/sync-main.ps1`을 사용한다.
 - Vercel 프로덕션 빌드는 `scripts/assert-production-source.mjs`가 GitHub `main` 배포인지 검사한다. 과거 브랜치나 로컬 CLI 직접 배포는 빌드 단계에서 차단한다.
 - Vercel 프로젝트의 `Ignored Build Step`도 Git clone의 GitHub `main` 프로덕션 배포만 허용한다. 이 외부 차단은 오래된 컴퓨터에 최신 스크립트가 없어도 적용된다.
 - 저장소 전체 작업 규칙은 `AGENTS.md`에 있으며, 새 Codex 세션은 수정 전에 반드시 따른다.

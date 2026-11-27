@@ -4,10 +4,12 @@ These rules apply to this entire repository, on every computer and in every Code
 
 ## Before editing
 
-1. Read the `현재 운영 기준` section at the top of `README.md`.
-2. Run `powershell -ExecutionPolicy Bypass -File scripts/sync-main.ps1`.
-3. If the script reports uncommitted work, stop. Preserve the user's changes and resolve them before switching branches or pulling.
-4. Make changes only from an up-to-date local `main`, unless the user explicitly requests an isolated feature branch.
+1. 작업을 시작할 때 GitHub에서 이 저장소의 `main` 최신 커밋 SHA를 직접 조회한다. 작업 문서와 수정할 파일은 그 SHA 기준으로 읽는다.
+2. 기본 작업 방식은 GitHub에서 직접 수정하는 것이다. 기존 PC 폴더를 갱신하거나 이전 작업본을 가져올 필요가 없다. 빌드가 필요하면 같은 SHA의 깨끗한 임시 작업 공간이나 CI를 사용한다.
+3. 변경은 확인한 SHA를 부모로 삼아 `main`에 반영한다. 강제 푸시를 사용하지 않는다. 다른 PC가 먼저 반영했다면 최신 파일을 다시 읽고 요청한 변경만 재적용한 뒤 검증한다.
+4. 완료 시 GitHub `main`에서 변경과 커밋 SHA를 다시 확인한다. 운영 반영 여부는 Vercel 운영 배포의 상태와 SHA를 별도로 대조해 보고한다.
+
+Read the current production section of `README.md` at that SHA. `scripts/sync-main.ps1` is optional for a dedicated clean local checkout.
 
 ## Production deployment
 
