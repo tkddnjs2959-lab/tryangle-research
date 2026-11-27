@@ -79,13 +79,13 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       const form = new FormData();
       form.set('studentId', id); form.set('date', day); form.set('start', startTime); form.set('end', suggestedEnd); form.set('teacher', teacherName);
       setError(''); setNotice('');
-      startTransition(async () => { try { await saveSession(form); router.refresh(); setNotice(startTime + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
+      startTransition(async () => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setNotice(startTime + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
       return;
     }
     const form = new FormData();
     form.set('studentId', id); form.set('date', day); form.set('start', match.start_time.slice(0,5)); form.set('end', match.end_time.slice(0,5)); form.set('teacher', match.teacher_name);
     setError(''); setNotice('');
-    startTransition(async () => { try { await saveSession(form); router.refresh(); setNotice(match.start_time.slice(0,5) + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
+    startTransition(async () => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setNotice(match.start_time.slice(0,5) + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
   };
   const assignAt = (id: string, day: string, hour: string) => {
     const student = names.get(id);
@@ -100,7 +100,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     setStart(hour); setEnd(endHour); setTeacher(teacherName); setError(''); setNotice('');
     startTransition(async () => {
       try {
-        await saveSession(form);
+        const result = await saveSession(form);
+        if (!result.ok) { setError(result.message); return; }
         router.refresh();
         setNotice(day + ' ' + hour + '에 ' + student.name + ' 학생을 배정했습니다.');
       } catch (cause) {
@@ -129,10 +130,10 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const first = names.get(lesson.items[0].student_id);
     const pair = first?.lesson_plan?.startsWith('pair_');
     const people = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생');
-    const label = pair ? '2:1' : '1:1';
+    const label = pair ? (first?.lesson_plan === 'pair_twice' ? '2:1 주 2회' : '2:1 주 1회') : '1:1';
     return <div key={lesson.key} style={{ borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#fff8fc', color:'#241521', border:'1px solid #efd8e6', boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
       <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', color:'#241521', border:0, cursor:'pointer', padding:0, lineHeight:1.45 }}>
-        <span style={{ display:'flex', gap:6, alignItems:'baseline', justifyContent:'space-between' }}><strong style={{ color:'#3a1730', whiteSpace:'nowrap' }}>{lesson.start}–{lesson.end}</strong><strong style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</strong></span>
+        <strong style={{ display:'block', color:'#3a1730', overflowWrap:'anywhere', whiteSpace:'normal' }} title={people.join(' · ')}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</strong>
         <small style={{ display:'block', color:'#80576e', fontWeight:700, marginTop:3 }}>{label} · {lesson.teacher}</small>
       </button>
       {expanded === lesson.key && <div style={{ paddingTop:8, color:'#372332', borderTop:'1px solid #efd8e6', marginTop:8 }}>
@@ -181,7 +182,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'}</h3>
       {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? (current.lesson_plan === 'one_team' ? '김유리 T' : current.homeroom_teacher || '이주아 T')); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
     </div>}
-    <form action={async form => { try { await saveSession(form); router.refresh(); setError(''); setNotice('시간표에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
+    <form action={async form => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setError(''); setNotice('시간표에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
       <input type="hidden" name="studentId" value={selected}/>
       <label>날짜 <input type="date" name="date" required value={date} onChange={event => { setDate(event.target.value); setWeek(0); }}/></label>
       <label>시작 <input type="time" name="start" required value={start} onChange={event => setStart(event.target.value)}/></label>

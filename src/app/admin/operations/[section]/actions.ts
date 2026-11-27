@@ -5,29 +5,39 @@ import { db } from '@/lib/supabase';
 
 const path = '/admin/operations/schedule';
 
-export async function saveSession(form: FormData) {
-  if (!(await currentAdminIdentity())) throw new Error('로그인이 필요합니다.');
+export async function saveSession(form: FormData): Promise<{ ok: boolean; message: string }> {
+  if (!(await currentAdminIdentity())) return { ok: false, message: '로그인이 필요합니다. 다시 로그인해 주세요.' };
   const date = String(form.get('date') ?? '');
   const start = String(form.get('start') ?? '');
   const end = String(form.get('end') ?? '');
   const teacher = String(form.get('teacher') ?? '').trim();
   const studentId = String(form.get('studentId') ?? '');
-  if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end || !['이주아 T','김유리 T'].includes(teacher) || !/^[0-9a-f-]{36}$/i.test(studentId)) throw new Error('수업 정보를 확인해 주세요.');
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end || !['이주아 T','김유리 T'].includes(teacher) || !/^[0-9a-f-]{36}$/i.test(studentId)) {
+    return { ok: false, message: '학생, 날짜, 시간을 확인해 주세요.' };
+  }
   const student = await db().from('coaching_students').select('id, lesson_plan').eq('id', studentId).neq('status', 'archived').single();
-  if (student.error) throw new Error('학생을 찾을 수 없습니다.');
-  if ((student.data.lesson_plan === 'one_lead' && teacher !== '이주아 T') || (student.data.lesson_plan === 'one_team' && teacher !== '김유리 T')) throw new Error('1:1 수업의 선택 선생님과 배정 선생님이 다릅니다.');
+  if (student.error) return { ok: false, message: '학생 정보를 찾을 수 없습니다.' };
+  if ((student.data.lesson_plan === 'one_lead' && teacher !== '이주아 T') || (student.data.lesson_plan === 'one_team' && teacher !== '김유리 T')) {
+    return { ok: false, message: '이 학생의 1:1 수업 선생님을 확인해 주세요.' };
+  }
   const existing = await db().from('lesson_sessions').select('student_id, start_time, end_time, teacher_name').eq('lesson_date', date).lt('start_time', end).gt('end_time', start);
-  if (existing.error) throw new Error('기존 수업을 조회하지 못했습니다.');
-  if (existing.data.some(item => item.student_id === studentId)) throw new Error('학생에게 겹치는 수업이 있습니다.');
+  if (existing.error) return { ok: false, message: '기존 시간표를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요.' };
+  if (existing.data.some(item => item.student_id === studentId)) return { ok: false, message: '이 학생에게 같은 시간의 수업이 이미 있습니다.' };
   const sameTeacher = existing.data.filter(item => item.teacher_name === teacher);
-  if (sameTeacher.some(item => item.start_time.slice(0,5) !== start || item.end_time.slice(0,5) !== end) || sameTeacher.length >= 2) throw new Error('선생님 시간 또는 2:1 정원을 확인해 주세요.');
+  if (sameTeacher.some(item => item.start_time.slice(0,5) !== start || item.end_time.slice(0,5) !== end) || sameTeacher.length >= 2) {
+    return { ok: false, message: '이 시간에 선생님의 수업이 이미 배정되어 있습니다.' };
+  }
   if (sameTeacher.length) {
     const partners = await db().from('coaching_students').select('id, lesson_plan').in('id', sameTeacher.map(item => item.student_id));
-    if (partners.error || !student.data.lesson_plan?.startsWith('pair_') || partners.data.some(item => !item.lesson_plan?.startsWith('pair_'))) throw new Error('2:1 수업 학생끼리만 함께 배정할 수 있습니다.');
+    if (partners.error) return { ok: false, message: '기존 수업 정보를 확인하지 못했습니다.' };
+    if (!student.data.lesson_plan?.startsWith('pair_') || partners.data.some(item => !item.lesson_plan?.startsWith('pair_'))) {
+      return { ok: false, message: '2:1 수업의 빈자리에는 2:1 학생만 배정할 수 있습니다.' };
+    }
   }
   const result = await db().from('lesson_sessions').insert({ lesson_date: date, start_time: start, end_time: end, teacher_name: teacher, student_id: studentId });
-  if (result.error) throw new Error('배정을 저장하지 못했습니다. 같은 시간의 중복 배정을 확인해 주세요.');
+  if (result.error) return { ok: false, message: result.error.code === '23505' ? '이미 배정된 수업입니다.' : '배정을 저장하지 못했습니다. 다시 시도해 주세요.' };
   revalidatePath(path);
+  return { ok: true, message: '배정했습니다.' };
 }
 
 export async function removeSession(form: FormData) {
