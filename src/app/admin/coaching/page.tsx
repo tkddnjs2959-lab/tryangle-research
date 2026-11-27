@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
 import { listCoachingStudents } from '@/lib/admin-data';
-import { logout, removeCoachingStudent } from '../actions';
+import { logout } from '../actions';
 import AdminTabs from '../AdminTabs';
-import ConfirmButton from '../ConfirmButton';
+import StudentDetails from './StudentDetails';
 import styles from '../admin.module.css';
 import AddCoachingStudentForm from './AddCoachingStudentForm';
 
@@ -58,7 +58,7 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
           {active.map((s) => (
             <li key={s.id} className={styles.resp}>
               <div className={styles.respHead}>
-                <strong>{s.name}</strong>
+                <StudentDetails student={s} />
                 
                 <span className={styles.meta}>
                   {[s.birthYear && `${s.birthYear}년생`, s.gender === 'female' ? '여' : '남', s.contact]
@@ -72,10 +72,6 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
 
               <div className={styles.studentActions}>
                 {s.actor && <Link href={`/admin/${s.actor.id}`} className={styles.back}>연동 상세</Link>}
-                <form action={removeCoachingStudent}>
-                  <input type="hidden" name="id" value={s.id} />
-                  <ConfirmButton className={styles.del} message={`${s.name} 학생을 목록에서 삭제할까요? 기록은 보존됩니다.`}>삭제</ConfirmButton>
-                </form>
               </div>
             </li>
           ))}

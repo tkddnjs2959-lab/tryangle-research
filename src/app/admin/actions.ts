@@ -317,7 +317,11 @@ export async function addCoachingStudent(_prev: string | null, form: FormData): 
 
   const residence = String(form.get('residence') ?? '').trim();
   if (residence.length > 120) return '사는 곳은 120자 이내로 입력해주세요.';
-  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null });
+  const lessonPlan = String(form.get('lessonPlan') ?? '');
+  const homeroomTeacher = String(form.get('homeroomTeacher') ?? '');
+  if (lessonPlan && !['one_lead','one_team','pair_once','pair_twice'].includes(lessonPlan)) return '수강 상품을 확인해 주세요.';
+  if (homeroomTeacher && !['이주아 T','김유리 T'].includes(homeroomTeacher)) return '담임 선생님을 확인해 주세요.';
+  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher });
   revalidatePath('/admin/coaching');
   return null;
 }

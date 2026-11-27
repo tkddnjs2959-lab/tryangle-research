@@ -1,0 +1,1 @@
+alter table coaching_students add column lesson_plan text check (lesson_plan in ('one_lead','one_team','pair_once','pair_twice')); alter table coaching_students add column homeroom_teacher text check (homeroom_teacher in ('이주아 T','김유리 T')); alter table coaching_students add column preferred_slots jsonb not null default '[]'::jsonb check (jsonb_typeof(preferred_slots) = 'array');
