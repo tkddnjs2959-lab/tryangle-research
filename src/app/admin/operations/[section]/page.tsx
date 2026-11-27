@@ -41,7 +41,7 @@ export default async function Page({ params, searchParams }: {
     <AdminTabs active={section}/>
     <form className={styles.searchForm}><label>조회 월 <input type="month" name="month" defaultValue={month}/></label>
       <button className={styles.btn}>조회</button></form>
-    {section === 'schedule' && <ScheduleBoard month={month} sessions={scheduleData?.data ?? []} students={studentsData?.data ?? []} /> }
+    {section === 'schedule' && <ScheduleBoard key={month} month={month} sessions={scheduleData?.data ?? []} students={studentsData?.data ?? []} /> }
     {section === 'closing' && <p>마감 상태 미확정 · 현재는 결제와 광고비 기초자료를 조회할 수 있습니다.</p>}
     {needsPayments && <section><h2>결제 기록</h2>{payments?.data?.length ? <table><thead><tr><th>결제일</th><th>금액</th><th>상태</th></tr></thead><tbody>
       {payments.data.map((p,i) => <tr key={i}><td>{new Date(p.paid_at).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul'})}</td><td>{Number(p.amount).toLocaleString('ko-KR')} {p.currency}</td><td>{p.status}</td></tr>)}</tbody></table> : <p>해당 월의 결제 기록이 없습니다.</p>}

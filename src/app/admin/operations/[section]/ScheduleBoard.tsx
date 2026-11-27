@@ -1,5 +1,6 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { saveSession, removeSession } from './actions';
 import styles from '../../admin.module.css';
 
@@ -25,6 +26,9 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   const [view, setView] = useState<'week' | 'month'>('week');
   const [week, setWeek] = useState(0);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const names = new Map(students.map(student => [student.id, student]));
   const current = students.find(student => student.id === selected);
   const startOfWeek = useMemo(() => {
@@ -51,18 +55,54 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const match = sessions.find(item => item.lesson_date === date && item.start_time.slice(0,5) >= slot.start && item.end_time.slice(0,5) <= slot.end && (!required || item.teacher_name === required) && current.lesson_plan?.startsWith('pair_') && names.get(item.student_id)?.lesson_plan?.startsWith('pair_') && sessions.filter(other => other.lesson_date === date && other.teacher_name === item.teacher_name && other.start_time === item.start_time && other.end_time === item.end_time).length < 2);
     return { slot, match };
   }) : [];
+  const assign = (id: string, day: string) => {
+    const student = names.get(id);
+    if (!student) return;
+    choose(id, day);
+    const preferred = (student.preferred_slots ?? []).filter(slot => slot.day === new Date(day + 'T12:00:00').getDay());
+    if (!preferred.length) { setNotice('희망 시간이 없는 날짜입니다. 아래에서 시간을 선택해 배정하세요.'); return; }
+    const required = student.lesson_plan === 'one_lead' ? '이주아 T' : student.lesson_plan === 'one_team' ? '김유리 T' : null;
+    const candidates = preferred.flatMap(slot => sessions.filter(item => item.lesson_date === day && item.start_time.slice(0,5) >= slot.start && item.end_time.slice(0,5) <= slot.end && student.lesson_plan?.startsWith('pair_') && names.get(item.student_id)?.lesson_plan?.startsWith('pair_') && (!required || item.teacher_name === required) && sessions.filter(other => other.lesson_date === day && other.teacher_name === item.teacher_name && other.start_time === item.start_time && other.end_time === item.end_time).length === 1));
+    const match = candidates[0];
+    if (!match) {
+      const slot = preferred[0];
+      const teacherName = required || student.homeroom_teacher || '이주아 T';
+      const startTime = slot.start;
+      const endTime = new Date('2000-01-01T' + slot.start + ':00').getTime() + 60 * 60 * 1000;
+      const suggestedEnd = new Date(endTime).toISOString().slice(11,16);
+      if (suggestedEnd > slot.end || sessions.some(item => item.lesson_date === day && item.teacher_name === teacherName && item.start_time.slice(0,5) < suggestedEnd && item.end_time.slice(0,5) > startTime)) {
+        setStart(slot.start); setEnd(slot.end);
+        setNotice('희망 시간 ' + slot.start + '–' + slot.end + '입니다. 겹치는 수업이나 시간 범위를 확인한 뒤 아래에서 배정하세요.');
+        return;
+      }
+      const form = new FormData();
+      form.set('studentId', id); form.set('date', day); form.set('start', startTime); form.set('end', suggestedEnd); form.set('teacher', teacherName);
+      setError(''); setNotice('');
+      startTransition(async () => { try { await saveSession(form); router.refresh(); setNotice(startTime + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
+      return;
+    }
+    const form = new FormData();
+    form.set('studentId', id); form.set('date', day); form.set('start', match.start_time.slice(0,5)); form.set('end', match.end_time.slice(0,5)); form.set('teacher', match.teacher_name);
+    setError(''); setNotice('');
+    startTransition(async () => { try { await saveSession(form); router.refresh(); setNotice(match.start_time.slice(0,5) + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
+  };
+  const shiftMonth = (offset: number) => {
+    const next = new Date(Number(month.slice(0,4)), Number(month.slice(5)) - 1 + offset, 1);
+    router.push('/admin/operations/schedule?month=' + next.getFullYear() + '-' + String(next.getMonth()+1).padStart(2,'0'));
+  };
   const counts = new Map<string, number>();
   for (const item of sessions) counts.set(item.student_id, (counts.get(item.student_id) ?? 0) + 1);
   return <section className={styles.block}>
     <div className={styles.summary}>
+      <button type="button" className={styles.btn} onClick={() => shiftMonth(-1)}>← 이전 달</button><strong>{month}</strong><button type="button" className={styles.btn} onClick={() => shiftMonth(1)}>다음 달 →</button>
       <button type="button" className={styles.btn} onClick={() => setView('week')}>주간</button>
       <button type="button" className={styles.btn} onClick={() => setView('month')}>월간</button>
       {view === 'week' && <><button type="button" className={styles.btn} onClick={() => setWeek(value => value - 1)}>이전 주</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value + 1)}>다음 주</button></>}
     </div>
     <p>{teachers.map(name => <span key={name} style={{ color:colors[name], marginRight:16 }}>{name}</span>)}</p>
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:8 }}>
-      {days.map(day => <div key={day} style={{ border:'1px solid #666', padding:10, minHeight:100 }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); choose(event.dataTransfer.getData('text/plain'),day); }}>
-        <button type="button" onClick={() => { setDate(day); setWeek(0); }}>{day}</button>
+      {days.map(day => <div key={day} style={{ border:'1px solid #666', padding:10, minHeight:100 }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }}>
+        <button type="button" onClick={() => { setDate(day); setWeek(0); }}>{day} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})</button>
         {sessions.filter(item => item.lesson_date === day).sort((a,b) => a.start_time.localeCompare(b.start_time)).map(item => <div key={item.id} style={{ borderLeft:'4px solid ' + colors[item.teacher_name], padding:6, marginTop:6 }}>
           <b>{item.start_time.slice(0,5)}–{item.end_time.slice(0,5)}</b><br/>{item.teacher_name}<br/>{names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
           <form action={removeSession}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
@@ -76,7 +116,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'}</h3>
       {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? (current.lesson_plan === 'one_team' ? '김유리 T' : current.homeroom_teacher || '이주아 T')); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
     </div>}
-    <form action={async form => { try { await saveSession(form); setError(''); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
+    <form action={async form => { try { await saveSession(form); router.refresh(); setError(''); setNotice('시간표에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
       <input type="hidden" name="studentId" value={selected}/>
       <label>날짜 <input type="date" name="date" required value={date} onChange={event => { setDate(event.target.value); setWeek(0); }}/></label>
       <label>시작 <input type="time" name="start" required value={start} onChange={event => setStart(event.target.value)}/></label>
@@ -84,6 +124,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       <label>수업 선생님 <select name="teacher" value={teacher} onChange={event => setTeacher(event.target.value)}>{teachers.map(name => <option key={name}>{name}</option>)}</select></label>
       <button type="submit" className={styles.btn} disabled={!selected}>시간표에 배정</button>
     </form>
+    {notice && <p role="status">{notice}</p>}
+    {pending && <p role="status">배정 중…</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
   </section>;
 }
