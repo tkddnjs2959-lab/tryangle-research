@@ -109,13 +109,13 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const pair = first?.lesson_plan?.startsWith('pair_');
     const people = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생');
     const label = pair ? '2:1' : '1:1';
-    return <div key={lesson.key} style={{ borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#211820', borderRadius:6, padding:compact ? 5 : 9, marginTop:5, fontSize:compact ? 12 : 14 }}>
-      <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'none', color:'inherit', border:0, cursor:'pointer', padding:0 }}>
-        <strong>{lesson.start}–{lesson.end}</strong>
+    return <div key={lesson.key} style={{ borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#fff8fc', color:'#241521', border:'1px solid #efd8e6', boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
+      <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', color:'#241521', border:0, cursor:'pointer', padding:0, lineHeight:1.45 }}>
+        <strong style={{ color:'#3a1730' }}>{lesson.start}–{lesson.end}</strong>
         <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</span>
-        <small>{label}</small>
+        <small style={{ color:'#80576e', fontWeight:700 }}>{label}</small>
       </button>
-      {expanded === lesson.key && <div style={{ paddingTop:8 }}>
+      {expanded === lesson.key && <div style={{ paddingTop:8, color:'#372332', borderTop:'1px solid #efd8e6', marginTop:8 }}>
         {lesson.items.map(item => <div key={item.id}>
           {names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
           <form action={removeSession}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
@@ -134,23 +134,23 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     </div>
     <p>{teachers.map(name => <span key={name} style={{ color:colors[name], marginRight:16 }}>{name}</span>)}</p>
     {view === 'week' ? <div style={{ overflowX:'auto' }}>
-      <div style={{ display:'grid', gridTemplateColumns:'64px repeat(7,minmax(145px,1fr))', minWidth:1100, borderTop:'1px solid #555', borderLeft:'1px solid #555' }}>
-        <div style={{ padding:8 }}>시간</div>
-        {days.map(day => <button type="button" key={day} onClick={() => setDate(day)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ background:date === day ? '#4c1835' : '#211820', color:'white', border:'1px solid #555', padding:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'68px repeat(7,minmax(145px,1fr))', minWidth:1100, border:'1px solid #e8dfe5', borderRadius:12, overflow:'hidden', background:'#fff' }}>
+        <div style={{ padding:12, background:'#fcf5f9', color:'#513446', fontWeight:700, borderRight:'1px solid #e8dfe5' }}>시간</div>
+        {days.map(day => <button type="button" key={day} onClick={() => setDate(day)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ background:date === day ? '#fce6f1' : '#fcf5f9', color:'#3a1730', fontWeight:700, border:'none', borderLeft:'1px solid #e8dfe5', padding:12, cursor:'pointer' }}>
           {day.slice(5)} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})
         </button>)}
         {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
-          <div style={{ padding:8, borderTop:'1px solid #555' }}>{hour}</div>
-          {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:82, border:'1px solid #444', padding:5, background:date === day ? '#271c27' : undefined }}>
+          <div style={{ padding:12, color:'#62495a', fontWeight:700, borderTop:'1px solid #e8dfe5', borderRight:'1px solid #e8dfe5', background:'#fffafd' }}>{hour}</div>
+          {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:date === day ? '#fff4fa' : '#fff' }}>
             {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
           </div>)}
         </div>)}
       </div>
-    </div> : <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:4 }}>
-      {['월','화','수','목','금','토','일'].map(label => <strong key={label} style={{ textAlign:'center' }}>{label}</strong>)}
+    </div> : <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:5, background:'#fff', borderRadius:12, padding:6 }}>
+      {['월','화','수','목','금','토','일'].map(label => <strong key={label} style={{ textAlign:'center', color:'#513446', padding:7 }}>{label}</strong>)}
       {Array.from({ length:(new Date(month + '-01T12:00:00').getDay()+6)%7 }, (_,index) => <div key={'blank-'+index}/>)}
-      {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:90, minWidth:0, border:'1px solid #555', padding:5, background:date === day ? '#271c27' : undefined }}>
-        <button type="button" onClick={() => setDate(day)} style={{ background:'none', border:0, color:'inherit' }}>{Number(day.slice(-2))} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})</button>
+      {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:110, minWidth:0, border:'1px solid #eadce5', borderRadius:8, padding:6, background:date === day ? '#fff0f8' : '#fff' }}>
+        <button type="button" onClick={() => setDate(day)} style={{ background:'transparent', border:0, color:'#3a1730', fontWeight:700, cursor:'pointer' }}>{Number(day.slice(-2))} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})</button>
         {lessons.filter(lesson => lesson.date === day).sort((a,b) => a.start.localeCompare(b.start)).map(lesson => lessonCard(lesson,true))}
       </div>)}
     </div>}
