@@ -20,7 +20,7 @@ export async function saveSession(form: FormData) {
   if (existing.error) throw new Error('기존 수업을 조회하지 못했습니다.');
   if (existing.data.some(item => item.student_id === studentId)) throw new Error('학생에게 겹치는 수업이 있습니다.');
   const sameTeacher = existing.data.filter(item => item.teacher_name === teacher);
-  if (sameTeacher.some(item => item.start_time !== start || item.end_time !== end) || sameTeacher.length >= 2) throw new Error('선생님 시간 또는 2:1 정원을 확인해 주세요.');
+  if (sameTeacher.some(item => item.start_time.slice(0,5) !== start || item.end_time.slice(0,5) !== end) || sameTeacher.length >= 2) throw new Error('선생님 시간 또는 2:1 정원을 확인해 주세요.');
   if (sameTeacher.length) {
     const partners = await db().from('coaching_students').select('id, lesson_plan').in('id', sameTeacher.map(item => item.student_id));
     if (partners.error || !student.data.lesson_plan?.startsWith('pair_') || partners.data.some(item => !item.lesson_plan?.startsWith('pair_'))) throw new Error('2:1 수업 학생끼리만 함께 배정할 수 있습니다.');

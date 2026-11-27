@@ -87,6 +87,27 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     setError(''); setNotice('');
     startTransition(async () => { try { await saveSession(form); router.refresh(); setNotice(match.start_time.slice(0,5) + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
   };
+  const assignAt = (id: string, day: string, hour: string) => {
+    const student = names.get(id);
+    if (!student) return;
+    choose(id, day);
+    const endHour = new Date(new Date('2000-01-01T' + hour + ':00').getTime() + 60 * 60 * 1000).toISOString().slice(11,16);
+    const required = student.lesson_plan === 'one_lead' ? '이주아 T' : student.lesson_plan === 'one_team' ? '김유리 T' : null;
+    const existingPair = sessions.find(item => item.lesson_date === day && item.start_time.slice(0,5) === hour && item.end_time.slice(0,5) === endHour && student.lesson_plan?.startsWith('pair_') && names.get(item.student_id)?.lesson_plan?.startsWith('pair_') && sessions.filter(other => other.lesson_date === day && other.teacher_name === item.teacher_name && other.start_time === item.start_time && other.end_time === item.end_time).length === 1);
+    const teacherName = required || existingPair?.teacher_name || student.homeroom_teacher || '이주아 T';
+    const form = new FormData();
+    form.set('studentId', id); form.set('date', day); form.set('start', hour); form.set('end', endHour); form.set('teacher', teacherName);
+    setStart(hour); setEnd(endHour); setTeacher(teacherName); setError(''); setNotice('');
+    startTransition(async () => {
+      try {
+        await saveSession(form);
+        router.refresh();
+        setNotice(day + ' ' + hour + '에 ' + student.name + ' 학생을 배정했습니다.');
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.');
+      }
+    });
+  };
   const shiftMonth = (offset: number) => {
     const next = new Date(Number(month.slice(0,4)), Number(month.slice(5)) - 1 + offset, 1);
     router.push('/admin/operations/schedule?month=' + next.getFullYear() + '-' + String(next.getMonth()+1).padStart(2,'0'));
@@ -111,9 +132,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const label = pair ? '2:1' : '1:1';
     return <div key={lesson.key} style={{ borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#fff8fc', color:'#241521', border:'1px solid #efd8e6', boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
       <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', color:'#241521', border:0, cursor:'pointer', padding:0, lineHeight:1.45 }}>
-        <strong style={{ color:'#3a1730' }}>{lesson.start}–{lesson.end}</strong>
-        <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</span>
-        <small style={{ color:'#80576e', fontWeight:700 }}>{label}</small>
+        <span style={{ display:'flex', gap:6, alignItems:'baseline', justifyContent:'space-between' }}><strong style={{ color:'#3a1730', whiteSpace:'nowrap' }}>{lesson.start}–{lesson.end}</strong><strong style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</strong></span>
+        <small style={{ display:'block', color:'#80576e', fontWeight:700, marginTop:3 }}>{label} · {lesson.teacher}</small>
       </button>
       {expanded === lesson.key && <div style={{ paddingTop:8, color:'#372332', borderTop:'1px solid #efd8e6', marginTop:8 }}>
         {lesson.items.map(item => <div key={item.id}>
@@ -141,7 +161,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
         </button>)}
         {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
           <div style={{ padding:12, color:'#62495a', fontWeight:700, borderTop:'1px solid #e8dfe5', borderRight:'1px solid #e8dfe5', background:'#fffafd' }}>{hour}</div>
-          {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:date === day ? '#fff4fa' : '#fff' }}>
+          {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assignAt(event.dataTransfer.getData('text/plain'),day,hour); }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:date === day ? '#fff4fa' : '#fff' }}>
             {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
           </div>)}
         </div>)}
@@ -157,7 +177,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     <h2>학생 검색·배정</h2>
     <input className={styles.input} aria-label="학생 검색" placeholder="학생 이름 검색" value={query} onChange={event => setQuery(event.target.value)}/>
     <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => event.dataTransfer.setData('text/plain',student.id)} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}회</button>)}</div>
-    <p>학생을 날짜에 놓거나 이름을 누른 뒤 날짜를 선택하세요. 희망 일정에 맞는 시간이 아래에 표시됩니다.</p>
+    <p>주간 시간 칸에 학생을 놓으면 해당 시간에 즉시 배정됩니다. 월간 날짜 칸에서는 희망 시간에 배정합니다.</p>
     {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'}</h3>
       {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? (current.lesson_plan === 'one_team' ? '김유리 T' : current.homeroom_teacher || '이주아 T')); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
     </div>}
