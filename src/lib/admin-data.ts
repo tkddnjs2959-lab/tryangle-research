@@ -670,6 +670,7 @@ export type CoachingStudentRow = {
   status: string;
   createdAt: string;
   /** 퍼스널 브랜딩(actors)에서 넘어온 학생이면 그쪽 요약을 함께 담는다. */
+  monthlyTuition: number | null;
   lessonPlan: string | null;
   homeroomTeacher: string | null;
   preferredSlots: { day: number; start: string; end: string }[];
@@ -715,6 +716,7 @@ type CoachingStudentDbRow = {
   status: string;
   created_at: string;
   actor_id: string | null;
+  monthly_tuition: number | null;
   lesson_plan: string | null;
   homeroom_teacher: string | null;
   preferred_slots: { day: number; start: string; end: string }[] | null;
@@ -732,7 +734,7 @@ export async function listCoachingStudents(
   const client = db();
   let query = client
     .from('coaching_students')
-    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots', { count: 'exact' })
+    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition', { count: 'exact' })
     .neq('status', 'archived');
 
   if (filters.gender) query = query.eq('gender', filters.gender);
@@ -763,7 +765,7 @@ export async function listCoachingStudents(
         .order('created_at', { ascending: false }).order('id', { ascending: false })
         .range(0, end),
       client.from('coaching_students')
-        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots')
+        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition')
         .neq('status', 'archived').is('birth_year', null)
         .order('created_at', { ascending: false }).order('id', { ascending: false })
         .limit(5000),
@@ -789,7 +791,7 @@ export async function listCoachingStudents(
     data = allMatches.slice(start, start + pageSize);
   } else {
     let batchQuery = client.from('coaching_students')
-      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots')
+      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition')
       .neq('status', 'archived')
       .is('birth_year', null);
     if (filters.gender) batchQuery = batchQuery.eq('gender', filters.gender);
@@ -823,6 +825,7 @@ export async function listCoachingStudents(
       school: r.school,
       note: r.note,
       status: r.status,
+      monthlyTuition: r.monthly_tuition,
       lessonPlan: r.lesson_plan,
       homeroomTeacher: r.homeroom_teacher,
       preferredSlots: r.preferred_slots ?? [],
@@ -907,6 +910,7 @@ export async function createCoachingStudent(input: {
   gender: Gender;
   contact: string | null;
   residence: string | null;
+  monthlyTuition?: number | null;
   lessonPlan?: string | null;
   homeroomTeacher?: string | null;
 }) {
@@ -916,6 +920,7 @@ export async function createCoachingStudent(input: {
     gender: input.gender,
     contact: input.contact,
     residence: input.residence,
+    monthly_tuition: input.monthlyTuition ?? null,
     lesson_plan: input.lessonPlan ?? null,
     homeroom_teacher: input.homeroomTeacher ?? null,
   });

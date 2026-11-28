@@ -12,6 +12,9 @@ export async function saveStudentPreferences(form: FormData) {
   const note = String(form.get('note') ?? '').trim();
   const plan = String(form.get('lessonPlan') ?? '');
   const teacher = String(form.get('homeroomTeacher') ?? '');
+  const tuitionRaw = String(form.get('monthlyTuition') ?? '').trim();
+  const monthlyTuition = tuitionRaw ? Number(tuitionRaw) : null;
+  if (monthlyTuition !== null && (!Number.isSafeInteger(monthlyTuition) || monthlyTuition < 0 || monthlyTuition > 100000000)) throw new Error('수강 금액을 확인해 주세요.');
   const birth = String(form.get('birthYear') ?? '').trim();
   const birthYear = birth ? Number(birth) : null;
   const gender = String(form.get('gender') ?? '');
@@ -24,7 +27,7 @@ export async function saveStudentPreferences(form: FormData) {
   const result = await db().from('coaching_students').update({
     name, contact: contact || null, residence: residence || null, note: note || null,
     birth_year: birthYear, gender, lesson_plan: plan || null,
-    homeroom_teacher: teacher || null, preferred_slots: slots,
+    homeroom_teacher: teacher || null, preferred_slots: slots, monthly_tuition: monthlyTuition,
   }).eq('id', id).neq('status','archived').select('id').single();
   if (result.error) throw new Error('학생 정보를 저장하지 못했습니다.');
   revalidatePath('/admin/coaching');

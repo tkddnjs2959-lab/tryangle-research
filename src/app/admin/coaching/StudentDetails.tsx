@@ -28,6 +28,7 @@ export default function StudentDetails({ student }: { student: CoachingStudentRo
           <label>성별<select className={styles.input} name="gender" defaultValue={student.gender}><option value="female">여성</option><option value="male">남성</option></select></label>
           <label>사는 곳<input className={styles.input} name="residence" defaultValue={student.residence ?? ''}/></label>
           <label>수강 상품<select className={styles.input} name="lessonPlan" defaultValue={student.lessonPlan ?? ''}><option value="">미정</option>{Object.entries(plans).map(([key,value]) => <option key={key} value={key}>{value}</option>)}</select></label>
+          <label>월 수강료 (원)<input className={styles.input} name="monthlyTuition" type="number" min="0" step="1" defaultValue={student.monthlyTuition ?? ''}/></label>
           <label>담임 선생님<select className={styles.input} name="homeroomTeacher" defaultValue={student.homeroomTeacher ?? ''}><option value="">미배정</option><option>이주아 T</option><option>김유리 T</option></select></label>
           <label>메모<textarea className={styles.input} name="note" defaultValue={student.note ?? ''}/></label>
           <div><strong>가능한 요일과 시간</strong>

@@ -22,6 +22,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [recentAssignment, setRecentAssignment] = useState<Session | null>(null);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState('');
   const [date, setDate] = useState(() => {
@@ -38,7 +39,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   const [notice, setNotice] = useState('');
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const displayedSessions = recentAssignment && !sessions.some(item => item.id === recentAssignment.id) ? [...sessions, recentAssignment] : sessions;
+  const displayedSessions = (recentAssignment && !sessions.some(item => item.id === recentAssignment.id) ? [...sessions, recentAssignment] : sessions).filter(item => !removedIds.includes(item.id));
   const names = new Map(students.map(student => [student.id, student]));
   const current = students.find(student => student.id === selected);
   const startOfWeek = useMemo(() => {
@@ -151,7 +152,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       {expanded === lesson.key && <div style={{ paddingTop:8, color:'#372332', borderTop:'1px solid #efd8e6', marginTop:8 }}>
         {lesson.items.map(item => <div key={item.id}>
           {names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
-          <form action={removeSession}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
+          <form action={async form => { try { await removeSession(form); setRecentAssignment(previous => previous?.id === item.id ? null : previous); setRemovedIds(previous => [...previous, item.id]); router.refresh(); setNotice('배정을 취소했습니다.'); } catch { setError('배정 취소에 실패했습니다. 다시 시도해 주세요.'); } }}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
         </div>)}
       </div>}
     </div>;

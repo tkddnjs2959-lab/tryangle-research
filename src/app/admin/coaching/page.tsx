@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isLoggedIn } from '@/lib/admin-auth';
 import { listCoachingStudents } from '@/lib/admin-data';
+import { db } from '@/lib/supabase';
 import { logout } from '../actions';
 import AdminTabs from '../AdminTabs';
 import StudentDetails from './StudentDetails';
@@ -23,6 +24,11 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const result = await listCoachingStudents({ gender, age, page });
   const active = result.students;
+  const ids = active.map(student => student.id);
+  const starts = ids.length ? await db().from('lesson_sessions').select('student_id, lesson_date').in('student_id', ids).order('lesson_date', { ascending: true }).limit(10000) : { data: [], error: null };
+  if (starts.error) throw new Error('수강 시작일을 조회하지 못했습니다.');
+  const startDates = new Map<string, string>();
+  for (const row of starts.data ?? []) if (!startDates.has(row.student_id)) startDates.set(row.student_id, row.lesson_date);
   const pageCount = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   return (
@@ -67,6 +73,7 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
                     .filter(Boolean)
                     .join(' · ')}
                 </span>
+                <span className={styles.meta}>수강 시작 {startDates.get(s.id) ?? '미배정'} · 월 수강료 {s.monthlyTuition === null ? '미설정' : s.monthlyTuition.toLocaleString('ko-KR') + '원'}</span>
                 {s.actor && <span className={styles.linkTag}>퍼스널 브랜딩 연동</span>}
               </div>
 

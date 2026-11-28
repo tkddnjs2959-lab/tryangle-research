@@ -321,7 +321,10 @@ export async function addCoachingStudent(_prev: string | null, form: FormData): 
   const homeroomTeacher = String(form.get('homeroomTeacher') ?? '');
   if (lessonPlan && !['one_lead','one_team','pair_once','pair_twice'].includes(lessonPlan)) return '수강 상품을 확인해 주세요.';
   if (homeroomTeacher && !['이주아 T','김유리 T'].includes(homeroomTeacher)) return '담임 선생님을 확인해 주세요.';
-  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher });
+  const tuitionRaw = String(form.get('monthlyTuition') ?? '').trim();
+  const monthlyTuition = tuitionRaw ? Number(tuitionRaw) : null;
+  if (monthlyTuition !== null && (!Number.isSafeInteger(monthlyTuition) || monthlyTuition < 0 || monthlyTuition > 100000000)) return '수강 금액을 확인해 주세요.';
+  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher, monthlyTuition });
   revalidatePath('/admin/coaching');
   return null;
 }
