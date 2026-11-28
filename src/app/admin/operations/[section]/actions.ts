@@ -5,7 +5,7 @@ import { db } from '@/lib/supabase';
 
 const path = '/admin/operations/schedule';
 
-export async function saveSession(form: FormData): Promise<{ ok: boolean; message: string }> {
+export async function saveSession(form: FormData): Promise<{ ok: boolean; message: string; id?: string }> {
   if (!(await currentAdminIdentity())) return { ok: false, message: '로그인이 필요합니다. 다시 로그인해 주세요.' };
   const date = String(form.get('date') ?? '');
   const start = String(form.get('start') ?? '');
@@ -34,10 +34,10 @@ export async function saveSession(form: FormData): Promise<{ ok: boolean; messag
       return { ok: false, message: '2:1 수업의 빈자리에는 2:1 학생만 배정할 수 있습니다.' };
     }
   }
-  const result = await db().from('lesson_sessions').insert({ lesson_date: date, start_time: start, end_time: end, teacher_name: teacher, student_id: studentId });
+  const result = await db().from('lesson_sessions').insert({ lesson_date: date, start_time: start, end_time: end, teacher_name: teacher, student_id: studentId }).select('id').single();
   if (result.error) return { ok: false, message: result.error.code === '23505' ? '이미 배정된 수업입니다.' : '배정을 저장하지 못했습니다. 다시 시도해 주세요.' };
   revalidatePath(path);
-  return { ok: true, message: '배정했습니다.' };
+  return { ok: true, message: '배정했습니다.', id: result.data.id };
 }
 
 export async function removeSession(form: FormData) {

@@ -14,6 +14,9 @@ const localDate = (date: Date) => date.getFullYear() + '-' + String(date.getMont
 
 export default function ScheduleBoard({ month, sessions, students }: { month: string; sessions: Session[]; students: Student[] }) {
   const [query, setQuery] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [recentAssignment, setRecentAssignment] = useState<Session | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState('');
   const [date, setDate] = useState(() => {
@@ -30,6 +33,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   const [notice, setNotice] = useState('');
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const displayedSessions = recentAssignment && !sessions.some(item => item.id === recentAssignment.id) ? [...sessions, recentAssignment] : sessions;
   const names = new Map(students.map(student => [student.id, student]));
   const current = students.find(student => student.id === selected);
   const startOfWeek = useMemo(() => {
@@ -89,8 +93,10 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   };
   const assignAt = (id: string, day: string, hour: string) => {
     const student = names.get(id);
-    if (!student) return;
-    choose(id, day);
+    if (!student) { setError('학생을 선택한 뒤 시간 칸에 놓아 주세요.'); return; }
+    if (pending) return;
+    setSelected(id);
+    setDate(day);
     const endHour = new Date(new Date('2000-01-01T' + hour + ':00').getTime() + 60 * 60 * 1000).toISOString().slice(11,16);
     const required = student.lesson_plan === 'one_lead' ? '이주아 T' : student.lesson_plan === 'one_team' ? '김유리 T' : null;
     const existingPair = sessions.find(item => item.lesson_date === day && item.start_time.slice(0,5) === hour && item.end_time.slice(0,5) === endHour && student.lesson_plan?.startsWith('pair_') && names.get(item.student_id)?.lesson_plan?.startsWith('pair_') && sessions.filter(other => other.lesson_date === day && other.teacher_name === item.teacher_name && other.start_time === item.start_time && other.end_time === item.end_time).length === 1);
@@ -102,6 +108,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       try {
         const result = await saveSession(form);
         if (!result.ok) { setError(result.message); return; }
+        setRecentAssignment({ id: result.id ?? 'new-' + Date.now(), lesson_date: day, start_time: hour, end_time: endHour, teacher_name: teacherName, student_id: id });
         router.refresh();
         setNotice(day + ' ' + hour + '에 ' + student.name + ' 학생을 배정했습니다.');
       } catch (cause) {
@@ -114,7 +121,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     router.push('/admin/operations/schedule?month=' + next.getFullYear() + '-' + String(next.getMonth()+1).padStart(2,'0'));
   };
   const grouped = new Map<string, Session[]>();
-  for (const item of sessions) {
+  for (const item of displayedSessions) {
     const key = [item.lesson_date, item.start_time, item.end_time, item.teacher_name].join('|');
     grouped.set(key, [...(grouped.get(key) ?? []), item]);
   }
@@ -157,12 +164,12 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     {view === 'week' ? <div style={{ overflowX:'auto' }}>
       <div style={{ display:'grid', gridTemplateColumns:'68px repeat(7,minmax(145px,1fr))', minWidth:1100, border:'1px solid #e8dfe5', borderRadius:12, overflow:'hidden', background:'#fff' }}>
         <div style={{ padding:12, background:'#fcf5f9', color:'#513446', fontWeight:700, borderRight:'1px solid #e8dfe5' }}>시간</div>
-        {days.map(day => <button type="button" key={day} onClick={() => setDate(day)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ background:date === day ? '#fce6f1' : '#fcf5f9', color:'#3a1730', fontWeight:700, border:'none', borderLeft:'1px solid #e8dfe5', padding:12, cursor:'pointer' }}>
+        {days.map(day => <button type="button" key={day} onClick={() => setDate(day)} style={{ background:date === day ? '#fce6f1' : '#fcf5f9', color:'#3a1730', fontWeight:700, border:'none', borderLeft:'1px solid #e8dfe5', padding:12, cursor:'pointer' }}>
           {day.slice(5)} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})
         </button>)}
         {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
           <div style={{ padding:12, color:'#62495a', fontWeight:700, borderTop:'1px solid #e8dfe5', borderRight:'1px solid #e8dfe5', background:'#fffafd' }}>{hour}</div>
-          {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assignAt(event.dataTransfer.getData('text/plain'),day,hour); }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:date === day ? '#fff4fa' : '#fff' }}>
+          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const id = event.dataTransfer.getData('text/plain') || draggingId || ''; setDropTarget(null); setDraggingId(null); assignAt(id,day,hour); }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
             {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
           </div>)}
         </div>)}
@@ -177,19 +184,19 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     </div>}
     <h2>학생 검색·배정</h2>
     <input className={styles.input} aria-label="학생 검색" placeholder="학생 이름 검색" value={query} onChange={event => setQuery(event.target.value)}/>
-    <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => event.dataTransfer.setData('text/plain',student.id)} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}회</button>)}</div>
-    <p>주간 시간 칸에 학생을 놓으면 해당 시간에 즉시 배정됩니다. 월간 날짜 칸에서는 희망 시간에 배정합니다.</p>
+    <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('text/plain',student.id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}회</button>)}</div>
+    <p>주간 시간 칸에 학생을 놓으면 해당 시간에 바로 배정됩니다. 분홍색 칸 위에 놓아 주세요. 월간 날짜 칸에서는 희망 시간에 배정합니다.</p>
     {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'}</h3>
       {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? (current.lesson_plan === 'one_team' ? '김유리 T' : current.homeroom_teacher || '이주아 T')); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
     </div>}
-    <form action={async form => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setError(''); setNotice('시간표에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
+    <details open={view === 'month'}><summary>직접 배정</summary><form action={async form => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setError(''); setNotice('시간표에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
       <input type="hidden" name="studentId" value={selected}/>
       <label>날짜 <input type="date" name="date" required value={date} onChange={event => { setDate(event.target.value); setWeek(0); }}/></label>
       <label>시작 <input type="time" name="start" required value={start} onChange={event => setStart(event.target.value)}/></label>
       <label>종료 <input type="time" name="end" required value={end} onChange={event => setEnd(event.target.value)}/></label>
       <label>수업 선생님 <select name="teacher" value={teacher} onChange={event => setTeacher(event.target.value)}>{teachers.map(name => <option key={name}>{name}</option>)}</select></label>
       <button type="submit" className={styles.btn} disabled={!selected}>시간표에 배정</button>
-    </form>
+    </form></details>
     {notice && <p role="status">{notice}</p>}
     {pending && <p role="status">배정 중…</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
