@@ -675,6 +675,7 @@ export type CoachingStudentRow = {
   homeroomTeacher: string | null;
   assistantTeacher: string | null;
   preferredSlots: { day: number; start: string; end: string }[];
+  firstStartDate: string | null;
   actor: {
     id: string;
     name: string;
@@ -723,6 +724,7 @@ type CoachingStudentDbRow = {
   homeroom_teacher: string | null;
   assistant_teacher: string | null;
   preferred_slots: { day: number; start: string; end: string }[] | null;
+  first_start_date: string | null;
 };
 
 const COACHING_STUDENT_PAGE_SIZE = 30;
@@ -737,7 +739,7 @@ export async function listCoachingStudents(
   const client = db();
   let query = client
     .from('coaching_students')
-    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition', { count: 'exact' })
+    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition, first_start_date', { count: 'exact' })
     ;
 
   if (filters.gender) query = query.eq('gender', filters.gender);
@@ -769,7 +771,7 @@ export async function listCoachingStudents(
         .order('name', { ascending: true }).order('id', { ascending: true })
         .range(0, end),
       client.from('coaching_students')
-        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition')
+        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition, first_start_date')
         .neq('status', 'archived').is('birth_year', null)
         .ilike('name', `%${filters.query ?? ''}%`)
         .order('name', { ascending: true }).order('id', { ascending: true })
@@ -796,7 +798,7 @@ export async function listCoachingStudents(
     data = allMatches.slice(start, start + pageSize);
   } else {
     let batchQuery = client.from('coaching_students')
-      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition')
+      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition, first_start_date')
       .neq('status', 'archived')
       .is('birth_year', null);
     if (filters.gender) batchQuery = batchQuery.eq('gender', filters.gender);
@@ -836,6 +838,7 @@ export async function listCoachingStudents(
       homeroomTeacher: r.homeroom_teacher,
       assistantTeacher: r.assistant_teacher,
       preferredSlots: r.preferred_slots ?? [],
+      firstStartDate: r.first_start_date,
       createdAt: r.created_at,
       actor: actor ? {
         id: actor.id,
@@ -922,6 +925,7 @@ export async function createCoachingStudent(input: {
   lessonPlan?: string | null;
   homeroomTeacher?: string | null;
   assistantTeacher?: string | null;
+  firstStartDate?: string | null;
 }) {
   const { error } = await db().from('coaching_students').insert({
     name: input.name,
@@ -934,6 +938,7 @@ export async function createCoachingStudent(input: {
     lesson_plan: input.lessonPlan ?? null,
     homeroom_teacher: input.homeroomTeacher ?? null,
     assistant_teacher: input.assistantTeacher ?? null,
+    first_start_date: input.firstStartDate ?? null,
   });
   if (error) throw new Error(error.message);
 }

@@ -329,8 +329,11 @@ export async function addCoachingStudent(_prev: string | null, form: FormData): 
   if (monthlyTuition !== null && (!Number.isSafeInteger(monthlyTuition) || monthlyTuition < 0 || monthlyTuition > 100000000)) return '수강 금액을 확인해 주세요.';
   const status = String(form.get('status') ?? 'active');
   if (!['active','waitlist','unregistered','leave','withdrawn'].includes(status)) return '학생 상태를 확인해 주세요.';
-  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher, assistantTeacher, monthlyTuition, status });
+  const firstStartDate = String(form.get('firstStartDate') ?? '').trim();
+  if (firstStartDate && !/^\d{4}-\d{2}-\d{2}$/.test(firstStartDate)) return '첫 시작일을 확인해 주세요.';
+  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher, assistantTeacher, monthlyTuition, status, firstStartDate: firstStartDate || null });
   revalidatePath('/admin/coaching');
+  revalidatePath('/admin/calendar');
   return null;
 }
 
