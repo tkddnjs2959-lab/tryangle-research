@@ -19,7 +19,7 @@ export async function saveStudentPreferences(form: FormData) {
   const birthYear = birth ? Number(birth) : null;
   const gender = String(form.get('gender') ?? '');
   const status = String(form.get('status') ?? 'active');
-  if (!['active','unregistered','leave','withdrawn'].includes(status)) throw new Error('학생 상태를 확인해 주세요.');
+  if (!['active','waitlist','unregistered','leave','withdrawn'].includes(status)) throw new Error('학생 상태를 확인해 주세요.');
   if (!/^[0-9a-f-]{36}$/i.test(id) || !name || name.length > 120 || contact.length > 120 || residence.length > 120 || note.length > 2000 || !['female','male'].includes(gender) || (birthYear !== null && (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > 2100)) || (plan && !['one_lead','one_team','pair_once','pair_twice'].includes(plan)) || (teacher && !['이주아 T','김유리 T'].includes(teacher))) throw new Error('학생 정보를 확인해 주세요.');
   const slots = form.getAll('slot').map(value => {
     const [day, start, end] = String(value).split('|');
