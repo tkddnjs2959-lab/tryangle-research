@@ -8,7 +8,7 @@ import styles from './admin.module.css';
 const tabs = [
   ['schedule', '/admin/operations/schedule', '수업 시간표'],
   ['coaching', '/admin/coaching', '학생·등록'],
-  ['receipts', '/admin/operations/receipts', '수납·미수'],
+  ['receipts', '/admin/operations/receipts', '월 수납'],
   ['costs', '/admin/operations/costs', '비용·수익성'],
   ['closing', '/admin/operations/closing', '월 마감'],
   ['consultations', '/admin/inquiries', '상담문의'],

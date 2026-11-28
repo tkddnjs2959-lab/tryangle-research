@@ -1,4 +1,5 @@
 import ScheduleBoard from './ScheduleBoard';
+import MonthlyManagement from './MonthlyManagement';
 import { notFound, redirect } from 'next/navigation';
 import { currentAdminIdentity } from '@/lib/admin-auth';
 import { db } from '@/lib/supabase';
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const sections = {
   schedule: '수업 시간표',
-  receipts: '수납·미수',
+  receipts: '월 수납',
   costs: '비용·수익성',
   closing: '월 마감',
 } as const;
@@ -53,6 +54,7 @@ export default async function Page({ params, searchParams }: {
     <AdminTabs active={section}/>
     <form className={styles.searchForm}><label>조회 월 <input type="month" name="month" defaultValue={month}/></label>
       <button className={styles.btn}>조회</button></form>
+    {(section === 'receipts' || section === 'closing') && <MonthlyManagement month={month} section={section} />}
     {section === 'schedule' && <ScheduleBoard key={month} month={month} sessions={scheduleData?.data ?? []} students={studentsData?.data ?? []} /> }
     {section === 'closing' && <section className={styles.block}><h2 className={styles.blockTitle}>수업 배정 기준 월 예정 매출</h2><p>총 {scheduled.length}회 · 금액 설정 {priced.length}회 · {Math.round(scheduledRevenue).toLocaleString('ko-KR')}원</p><p>월 수강료를 주 1회 상품은 4회, 주 2회 상품은 8회로 나누어 배정된 회차별로 계산합니다. 예약과 결제·수업 완료 여부는 별도입니다.</p>{priced.length < scheduled.length && <p>수강료 정보가 없는 {scheduled.length - priced.length}회는 계산에서 제외됩니다.</p>}<table className={styles.table}><thead><tr><th>수업일</th><th>학생</th><th>회당 예정 매출</th></tr></thead><tbody>{effectiveRows.map(row => <tr key={row.id}><td>{row.lesson_date}</td><td>{row.student?.name ?? '학생'}</td><td>{row.amount !== null && row.count ? Math.round(row.amount / row.count).toLocaleString('ko-KR') + '원' + (row.estimatedFromCurrent ? ' (현재 수강료 기준)' : '') : '금액 미설정'}</td></tr>)}</tbody></table></section>}
     {needsPayments && <section><h2>결제 기록</h2>{payments?.data?.length ? <table><thead><tr><th>결제일</th><th>금액</th><th>상태</th></tr></thead><tbody>
