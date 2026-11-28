@@ -16,8 +16,12 @@ export default function StudentDetails({ student }: { student: CoachingStudentRo
   const [start, setStart] = useState('18:00');
   const [end, setEnd] = useState('20:00');
   const [error, setError] = useState('');
+  const status = ({ active: { label: '수강생', color: '#197047', background: '#e6f7ed' }, unregistered: { label: '미등록', color: '#815b15', background: '#fff4d8' }, prospective: { label: '미등록', color: '#815b15', background: '#fff4d8' }, leave: { label: '휴학생', color: '#315eaa', background: '#eaf2ff' }, withdrawn: { label: '퇴원생', color: '#66616b', background: '#f0eef2' }, done: { label: '퇴원생', color: '#66616b', background: '#f0eef2' }, archived: { label: '퇴원생', color: '#66616b', background: '#f0eef2' } } as Record<string, { label: string; color: string; background: string }>)[student.status] ?? { label: '미등록', color: '#815b15', background: '#fff4d8' };
   return <>
-    <button type="button" className={styles.btn} onClick={() => setOpen(true)}>{student.name}</button>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+      <button type="button" className={styles.btn} onClick={() => setOpen(true)}>{student.name}</button>
+      <span aria-label={`학생 상태: ${status.label}`} style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700, lineHeight: 1.4, color: status.color, background: status.background }}>{status.label}</span>
+    </span>
     {open && <div role="presentation" style={{ position:'fixed', inset:0, zIndex:100, background:'rgba(17,10,16,.76)', display:'grid', placeItems:'center', padding:12 }} onClick={() => setOpen(false)}>
       <section role="dialog" aria-modal="true" aria-label={student.name + ' 학생 상세'} onClick={event => event.stopPropagation()} style={{ width:'min(960px,100%)', maxHeight:'calc(100vh - 24px)', overflowY:'auto', background:'#fff', color:'#271c25', borderRadius:18, boxShadow:'0 20px 60px rgba(0,0,0,.3)', padding:'clamp(16px,3vw,28px)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, borderBottom:'1px solid #f0e3eb', paddingBottom:12, marginBottom:14 }}>
