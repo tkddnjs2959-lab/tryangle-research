@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveSession, removeSession, moveSession } from './actions';
+import { saveSession, removeSession, moveSession, setScheduleClosure } from './actions';
 import styles from '../../admin.module.css';
 
 type Slot = { day: number; start: string; end: string };
@@ -17,8 +17,9 @@ const addHour = (time: string) => {
 };
 const localDate = (date: Date) => date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
 
-export default function ScheduleBoard({ month, sessions, students }: { month: string; sessions: Session[]; students: Student[] }) {
+export default function ScheduleBoard({ month, sessions, students, closures }: { month: string; sessions: Session[]; students: Student[]; closures: { period_type: string; period_key: string }[] }) {
   const [query, setQuery] = useState('');
+  const [closedPeriods, setClosedPeriods] = useState(closures);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [recentAssignment, setRecentAssignment] = useState<Session | null>(null);
@@ -67,6 +68,34 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     }
     return student.homeroom_teacher || '이주아 T';
   };
+  const weekKey = localDate(startOfWeek);
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
+  const closingWeekEnd = new Date(startOfWeek);
+  closingWeekEnd.setDate(closingWeekEnd.getDate() + 7);
+  const weekIsPast = localDate(closingWeekEnd) <= today;
+  const monthIsPast = month < today.slice(0, 7);
+  const firstOfMonth = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), 1);
+  const firstMonday = new Date(firstOfMonth);
+  firstMonday.setDate(1 - ((firstOfMonth.getDay() + 6) % 7));
+  const weekNumber = Math.floor((startOfWeek.getTime() - firstMonday.getTime()) / (7 * 86400000)) + 1;
+  const isLocked = (day: string) => {
+    const target = new Date(day + 'T12:00:00');
+    target.setDate(target.getDate() - (target.getDay() + 6) % 7);
+    return closedPeriods.some(item => (item.period_type === 'month' && item.period_key === day.slice(0, 7)) || (item.period_type === 'week' && item.period_key === localDate(target)));
+  };
+  const selectedClosed = view === 'week' ? closedPeriods.some(item => item.period_type === 'week' && item.period_key === weekKey) : closedPeriods.some(item => item.period_type === 'month' && item.period_key === month);
+  const toggleClosure = (type: 'week' | 'month', key: string, close: boolean) => {
+    const form = new FormData();
+    form.set('type', type); form.set('key', key); form.set('close', String(close));
+    startTransition(async () => {
+      try {
+        const result = await setScheduleClosure(form);
+        if (!result.ok) { setError(result.message); return; }
+        setClosedPeriods(previous => close ? [...previous.filter(item => item.period_type !== type || item.period_key !== key), { period_type: type, period_key: key }] : previous.filter(item => item.period_type !== type || item.period_key !== key));
+        setNotice(result.message); setError(''); router.refresh();
+      } catch { setError('마감 상태를 변경하지 못했습니다.'); }
+    });
+  };
   const choose = (id: string, day: string) => {
     const student = names.get(id);
     if (!student) return;
@@ -81,6 +110,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     return { slot, match };
   }) : [];
   const assign = (id: string, day: string) => {
+    if (isLocked(day)) { setError('마감된 시간표는 수정할 수 없습니다.'); return; }
     const student = names.get(id);
     if (!student) return;
     choose(id, day);
@@ -111,6 +141,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     startTransition(async () => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setNotice(match.start_time.slice(0,5) + ' 수업에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } });
   };
   const assignAt = (id: string, day: string, hour: string) => {
+    if (isLocked(day)) { setError('마감된 시간표는 수정할 수 없습니다.'); return; }
     const student = names.get(id);
     if (!student) { setError('학생을 선택한 뒤 시간 칸에 놓아 주세요.'); return; }
     if (pending) return;
@@ -159,6 +190,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   ])).sort();
   const moveLesson = (lesson: typeof lessons[number], day: string, hour: string) => {
     if (pending || (lesson.date === day && lesson.start === hour)) return;
+    if (isLocked(lesson.date) || isLocked(day)) { setError('마감된 시간표는 수정할 수 없습니다.'); return; }
     const endHour = addHour(hour);
     if (!endHour) { setError('해당 시간에는 1시간 수업을 배정할 수 없습니다.'); return; }
     const item = lesson.items[0];
@@ -187,16 +219,16 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const pair = first?.lesson_plan?.startsWith('pair_');
     const people = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생');
     const label = pair ? (first?.lesson_plan === 'pair_twice' ? '2:1 주 2회' : '2:1 주 1회') : '1:1';
-    return <div key={lesson.key} draggable={view === 'week' && lesson.items.length === 1} onDragStart={event => { if (view !== 'week' || lesson.items.length !== 1) { event.preventDefault(); return; } setDraggingId(lesson.items[0].id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + lesson.items[0].id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} style={{ cursor: view === 'week' ? 'grab' : undefined, borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background: lesson.teacher === '김유리 T' ? '#eff6ff' : '#fff1f7', color:'#241521', borderTop:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), borderRight:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), borderBottom:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
+    return <div key={lesson.key} draggable={view === 'week' && lesson.items.length === 1 && !isLocked(lesson.date)} onDragStart={event => { if (view !== 'week' || lesson.items.length !== 1 || isLocked(lesson.date)) { event.preventDefault(); return; } setDraggingId(lesson.items[0].id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + lesson.items[0].id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} style={{ cursor: view === 'week' ? 'grab' : undefined, borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background: lesson.teacher === '김유리 T' ? '#eff6ff' : '#fff1f7', color:'#241521', borderTop:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), borderRight:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), borderBottom:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
       <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', color:'#241521', border:0, cursor:'pointer', padding:0, lineHeight:1.45 }}>
         <strong style={{ display:'block', color:'#3a1730', overflowWrap:'anywhere', whiteSpace:'normal' }} title={people.join(' · ')}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</strong>
         <small style={{ display:'block', color:'#80576e', fontWeight:700, marginTop:3 }}>{label} · {lesson.teacher}</small>
       </button>
       {expanded === lesson.key && <div style={{ paddingTop:8, color:'#372332', borderTop:'1px solid #efd8e6', marginTop:8 }}>
-        {lesson.items.map(item => <div key={item.id} draggable onDragStart={event => { event.stopPropagation(); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + item.id); }}>
+        {lesson.items.map(item => <div key={item.id} draggable={!isLocked(item.lesson_date)} onDragStart={event => { event.stopPropagation(); if (isLocked(item.lesson_date)) { event.preventDefault(); return; } event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + item.id); }}>
           {names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
-          <label> 담당 <select aria-label="회차 담당 선생님" defaultValue={item.teacher_name} disabled={pending} onChange={event => changeTeacher(item, event.target.value)}>{teachers.map(name => <option key={name} value={name}>{name === names.get(item.student_id)?.homeroom_teacher ? '담임 · ' : name === names.get(item.student_id)?.assistant_teacher ? '부담임 · ' : ''}{name}</option>)}</select></label>
-          <form action={async form => { try { await removeSession(form); setRecentAssignment(previous => previous?.id === item.id ? null : previous); setRemovedIds(previous => [...previous, item.id]); router.refresh(); setNotice('배정을 취소했습니다.'); } catch { setError('배정 취소에 실패했습니다. 다시 시도해 주세요.'); } }}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
+          <label> 담당 <select aria-label="회차 담당 선생님" defaultValue={item.teacher_name} disabled={pending || isLocked(item.lesson_date)} onChange={event => changeTeacher(item, event.target.value)}>{teachers.map(name => <option key={name} value={name}>{name === names.get(item.student_id)?.homeroom_teacher ? '담임 · ' : name === names.get(item.student_id)?.assistant_teacher ? '부담임 · ' : ''}{name}</option>)}</select></label>
+          <form action={async form => { try { await removeSession(form); setRecentAssignment(previous => previous?.id === item.id ? null : previous); setRemovedIds(previous => [...previous, item.id]); router.refresh(); setNotice('배정을 취소했습니다.'); } catch { setError('배정 취소에 실패했습니다. 다시 시도해 주세요.'); } }}><input type="hidden" name="id" value={item.id}/><button type="submit" disabled={pending || isLocked(item.lesson_date)}>배정 취소</button></form>
         </div>)}
       </div>}
     </div>;
@@ -276,8 +308,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     .sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id));
   const unassignedStudents = visibleStudents.filter(student => !periodAssignedIds.has(student.id));
   const assignedStudents = visibleStudents.filter(student => periodAssignedIds.has(student.id));
-  const studentButton = (student: Student) => <button key={student.id} type="button" draggable
-    onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }}
+  const studentButton = (student: Student) => <button key={student.id} type="button" draggable={!isLocked(date)}
+    onDragStart={event => { if (isLocked(date)) { event.preventDefault(); return; } setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }}
     onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
     onClick={() => choose(student.id,date)} className={styles.btn}>
     {student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {periodSessions.filter(item => item.student_id === student.id).length}타임
@@ -293,27 +325,26 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       <button type="button" className={styles.btn} onClick={() => setView('month')}>월간</button>
       {view === 'week' && <><button type="button" className={styles.btn} onClick={downloadWeek}>주간 시간표 다운로드</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value - 1)}>이전 주</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value + 1)}>다음 주</button></>}
     </div>
-    <p>{teachers.map(name => <span key={name} style={{ color:colors[name], marginRight:16 }}>{name}</span>)}</p>
-    {notice && <p role="status" style={{ color:'#176a46', fontWeight:700 }}>{notice}</p>}
-    {pending && <p role="status">배정 중…</p>}
-    {error && <p role="alert" style={{ color:'#b4233c', fontWeight:700 }}>{error}</p>}
+    {(view === 'week' ? weekIsPast : monthIsPast) && <button type="button" className={styles.btn} disabled={pending} onClick={() => toggleClosure(view, view === 'week' ? weekKey : month, !selectedClosed)}>{selectedClosed ? '마감 해제' : (view === 'week' ? '이 주차 마감' : '이 달 마감')}</button>}
     {view === 'week' ? <div style={{ overflowX:'auto' }}>
       <div style={{ display:'grid', gridTemplateColumns:'68px repeat(7,minmax(145px,1fr))', minWidth:1100, border:'1px solid #e8dfe5', borderRadius:12, overflow:'hidden', background:'#fff' }}>
+        <div style={{ gridColumn:'1 / -1', padding:'12px 16px', background:'#fff0f7', color:'#3a1730', fontSize:19, fontWeight:800 }}>{startOfWeek.getMonth() + 1}월 {weekNumber}주차 · {days[0].slice(5)}~{days[6].slice(5)} {days.every(isLocked) ? '· 마감' : ''}</div>
         <div style={{ padding:12, background:'#fcf5f9', color:'#513446', fontWeight:700, borderRight:'1px solid #e8dfe5' }}>시간</div>
         {days.map(day => <button type="button" key={day} onClick={() => setDate(day)} style={{ background:date === day ? '#fce6f1' : '#fcf5f9', color:'#3a1730', fontWeight:700, border:'none', borderLeft:'1px solid #e8dfe5', padding:12, cursor:'pointer' }}>
           {day.slice(5)} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})
         </button>)}
         {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
           <div style={{ padding:12, color:'#62495a', fontWeight:700, borderTop:'1px solid #e8dfe5', borderRight:'1px solid #e8dfe5', background:'#fffafd' }}>{hour}</div>
-          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const payload = event.dataTransfer.getData('text/plain'); setDropTarget(null); if (payload.startsWith('session:')) { const id = payload.slice(8); const lesson = lessons.find(item => item.items.some(session => session.id === id)); if (lesson) moveLesson({ ...lesson, items: lesson.items.filter(session => session.id === id) },day,hour); } else { setDraggingId(null); assignAt(payload || draggingId || '',day,hour); } }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
+          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { if (isLocked(day)) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const payload = event.dataTransfer.getData('text/plain'); setDropTarget(null); if (payload.startsWith('session:')) { const id = payload.slice(8); const lesson = lessons.find(item => item.items.some(session => session.id === id)); if (lesson) moveLesson({ ...lesson, items: lesson.items.filter(session => session.id === id) },day,hour); } else { setDraggingId(null); assignAt(payload || draggingId || '',day,hour); } }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:isLocked(day) ? '#f3f1f3' : dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
             {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
           </div>)}
         </div>)}
       </div>
     </div> : <div style={{ display:'grid', gridTemplateColumns:'repeat(7,minmax(0,1fr))', gap:5, background:'#fff', borderRadius:12, padding:6 }}>
+      <div style={{ gridColumn:'1 / -1', color:'#3a1730', fontSize:19, fontWeight:800, padding:'10px 8px' }}>{Number(month.slice(5))}월 월간 시간표 {selectedClosed ? '· 마감' : ''}</div>
       {['월','화','수','목','금','토','일'].map(label => <strong key={label} style={{ textAlign:'center', color:'#513446', padding:7 }}>{label}</strong>)}
       {Array.from({ length:(new Date(month + '-01T12:00:00').getDay()+6)%7 }, (_,index) => <div key={'blank-'+index}/>)}
-      {days.map(day => <div key={day} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:110, minWidth:0, border:'1px solid #eadce5', borderRadius:8, padding:6, background:date === day ? '#fff0f8' : '#fff' }}>
+      {days.map(day => <div key={day} onDragOver={event => { if (!isLocked(day)) event.preventDefault(); }} onDrop={event => { event.preventDefault(); assign(event.dataTransfer.getData('text/plain'),day); }} style={{ minHeight:110, minWidth:0, border:'1px solid #eadce5', borderRadius:8, padding:6, background:isLocked(day) ? '#f3f1f3' : date === day ? '#fff0f8' : '#fff' }}>
         <button type="button" onClick={() => setDate(day)} style={{ background:'transparent', border:0, color:'#3a1730', fontWeight:700, cursor:'pointer' }}>{Number(day.slice(-2))} ({'일월화수목금토'[new Date(day + 'T12:00:00').getDay()]})</button>
         {lessons.filter(lesson => lesson.date === day).sort((a,b) => a.start.localeCompare(b.start)).map(lesson => lessonCard(lesson,true))}
       </div>)}
@@ -334,7 +365,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       <label>시작 <input type="time" name="start" required value={start} onChange={event => setStart(event.target.value)}/></label>
       <label>종료 <input type="time" name="end" required value={end} onChange={event => setEnd(event.target.value)}/></label>
       <label>수업 선생님 <select name="teacher" value={teacher} onChange={event => setTeacher(event.target.value)}>{teachers.map(name => <option key={name}>{name}</option>)}</select></label>
-      <button type="submit" className={styles.btn} disabled={!selected}>시간표에 배정</button>
+      <button type="submit" className={styles.btn} disabled={!selected || isLocked(date) || pending}>시간표에 배정</button>
     </form></details>
     {notice && <p role="status">{notice}</p>}
     {pending && <p role="status">배정 중…</p>}

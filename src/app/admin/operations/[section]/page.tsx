@@ -32,14 +32,15 @@ export default async function Page({ params, searchParams }: {
   const scheduleEnd = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 8)).toISOString().slice(0,10);
   const needsPayments = section === 'receipts' || section === 'closing';
   const needsSpend = section === 'costs' || section === 'closing';
-  const [payments, spend, scheduleData, studentsData, revenueData] = await Promise.all([
+  const [payments, spend, scheduleData, studentsData, revenueData, closuresData] = await Promise.all([
     needsPayments ? db().from('payments').select('paid_at, amount, currency, status').gte('paid_at', start+'T00:00:00+09:00').lt('paid_at', next+'T00:00:00+09:00').order('paid_at') : null,
     needsSpend ? db().from('marketing_spend_daily').select('spend_date, platform, spend').gte('spend_date', start).lt('spend_date', next).order('spend_date') : null,
     section === 'schedule' ? db().from('lesson_sessions').select('id, lesson_date, start_time, end_time, teacher_name, student_id').gte('lesson_date', scheduleStart).lt('lesson_date', scheduleEnd).order('lesson_date') : null,
     section === 'schedule' ? db().from('coaching_students').select('id, name, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots').eq('status', 'active').order('name').limit(5000) : null,
     section === 'closing' ? db().from('lesson_sessions').select('id, lesson_date, student_id, tuition_amount, tuition_session_count, coaching_students(name, monthly_tuition, lesson_plan)').gte('lesson_date', start).lt('lesson_date', next).order('lesson_date').limit(10000) : null,
+    section === 'schedule' ? db().from('schedule_period_closures').select('period_type, period_key').limit(2000) : null,
   ]);
-  if (payments?.error || spend?.error || scheduleData?.error || studentsData?.error || revenueData?.error) throw new Error('월별 자료를 조회하지 못했습니다.');
+  if (payments?.error || spend?.error || scheduleData?.error || studentsData?.error || revenueData?.error || closuresData?.error) throw new Error('월별 자료를 조회하지 못했습니다.');
   const scheduled = revenueData?.data ?? [];
   const effectiveRows = scheduled.map(row => {
     const student = row.coaching_students as unknown as { name: string; monthly_tuition: number | null; lesson_plan: string | null } | null;
@@ -56,7 +57,7 @@ export default async function Page({ params, searchParams }: {
     <form className={styles.searchForm}><label>조회 월 <input type="month" name="month" defaultValue={month}/></label>
       <button className={styles.btn}>조회</button></form>
     {(section === 'receipts' || section === 'closing') && <MonthlyManagement month={month} section={section} />}
-    {section === 'schedule' && <ScheduleBoard key={month} month={month} sessions={scheduleData?.data ?? []} students={studentsData?.data ?? []} /> }
+    {section === 'schedule' && <ScheduleBoard key={month} month={month} sessions={scheduleData?.data ?? []} students={studentsData?.data ?? []} closures={closuresData?.data ?? []} /> }
     {section === 'closing' && <section className={styles.block}><h2 className={styles.blockTitle}>수업 배정 기준 월 매출</h2><p>총 {scheduled.length}타임 · 금액 설정 {priced.length}타임 · 확정 {Math.round(confirmedRevenue).toLocaleString('ko-KR')}원 · 예상 {Math.round(estimatedRevenue).toLocaleString('ko-KR')}원 · 합계 {Math.round(confirmedRevenue + estimatedRevenue).toLocaleString('ko-KR')}원</p><p>수업일이 지난 배정은 확정, 오늘과 이후 배정은 예상으로 계산합니다. 월 수강료를 주 1회 상품은 월 4타임, 주 2회 상품은 월 8타임으로 나눕니다.</p>{priced.length < scheduled.length && <p>수강료 정보가 없는 {scheduled.length - priced.length}타임은 계산에서 제외됩니다.</p>}<table className={styles.table}><thead><tr><th>수업일</th><th>학생</th><th>구분</th><th>타임당 매출</th></tr></thead><tbody>{effectiveRows.map(row => <tr key={row.id}><td>{row.lesson_date}</td><td>{row.student?.name ?? '학생'}</td><td>{row.lesson_date < today ? '확정' : '예상'}</td><td>{row.amount !== null && row.count ? Math.round(row.amount / row.count).toLocaleString('ko-KR') + '원' + (row.estimatedFromCurrent ? ' (현재 수강료 기준)' : '') : '금액 미설정'}</td></tr>)}</tbody></table></section>}
     {needsPayments && <section><h2>결제 기록</h2>{payments?.data?.length ? <table><thead><tr><th>결제일</th><th>금액</th><th>상태</th></tr></thead><tbody>
       {payments.data.map((p,i) => <tr key={i}><td>{new Date(p.paid_at).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul'})}</td><td>{Number(p.amount).toLocaleString('ko-KR')} {p.currency}</td><td>{p.status}</td></tr>)}</tbody></table> : <p>해당 월의 결제 기록이 없습니다.</p>}

@@ -4,6 +4,48 @@ import { currentAdminIdentity } from '@/lib/admin-auth';
 import { db } from '@/lib/supabase';
 
 const path = '/admin/operations/schedule';
+const validDate = /^20\d{2}-\d{2}-\d{2}$/;
+const todayInKorea = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
+
+function weekStart(day: string) {
+  const date = new Date(day + 'T12:00:00Z');
+  date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+  return date.toISOString().slice(0, 10);
+}
+
+async function isClosed(day: string) {
+  const week = weekStart(day);
+  const [monthLock, weekLock] = await Promise.all([
+    db().from('schedule_period_closures').select('period_key').eq('period_type', 'month').eq('period_key', day.slice(0, 7)).maybeSingle(),
+    db().from('schedule_period_closures').select('period_key').eq('period_type', 'week').eq('period_key', week).maybeSingle(),
+  ]);
+  if (monthLock.error || weekLock.error) throw new Error('마감 상태를 확인하지 못했습니다.');
+  return Boolean(monthLock.data || weekLock.data);
+}
+
+export async function setScheduleClosure(form: FormData): Promise<{ ok: boolean; message: string }> {
+  if (!(await currentAdminIdentity())) return { ok: false, message: '로그인이 필요합니다.' };
+  const type = String(form.get('type') ?? '');
+  const key = String(form.get('key') ?? '');
+  const close = String(form.get('close') ?? '') === 'true';
+  if (type !== 'week' && type !== 'month') return { ok: false, message: '기간을 확인해 주세요.' };
+  if (type === 'month' && !/^20\d{2}-(0[1-9]|1[0-2])$/.test(key)) return { ok: false, message: '월을 확인해 주세요.' };
+  if (type === 'week' && (!validDate.test(key) || weekStart(key) !== key)) return { ok: false, message: '주차를 확인해 주세요.' };
+  if (close) {
+    const end = type === 'month'
+      ? new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5)), 1)).toISOString().slice(0, 10)
+      : new Date(new Date(key + 'T12:00:00Z').getTime() + 7 * 86400000).toISOString().slice(0, 10);
+    if (end > todayInKorea()) return { ok: false, message: '지난 주차나 월만 마감할 수 있습니다.' };
+    const result = await db().from('schedule_period_closures').upsert({ period_type: type, period_key: key }, { onConflict: 'period_type,period_key' });
+    if (result.error) return { ok: false, message: '시간표 마감에 실패했습니다.' };
+  } else {
+    const result = await db().from('schedule_period_closures').delete().eq('period_type', type).eq('period_key', key);
+    if (result.error) return { ok: false, message: '시간표 마감 해제에 실패했습니다.' };
+  }
+  revalidatePath(path);
+  return { ok: true, message: close ? '시간표를 마감했습니다.' : '시간표 마감을 해제했습니다.' };
+}
+
 
 export async function saveSession(form: FormData): Promise<{ ok: boolean; message: string; id?: string }> {
   if (!(await currentAdminIdentity())) return { ok: false, message: '로그인이 필요합니다. 다시 로그인해 주세요.' };
@@ -15,6 +57,7 @@ export async function saveSession(form: FormData): Promise<{ ok: boolean; messag
   if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end || !['이주아 T','김유리 T'].includes(teacher) || !/^[0-9a-f-]{36}$/i.test(studentId)) {
     return { ok: false, message: '학생, 날짜, 시간을 확인해 주세요.' };
   }
+  try { if (await isClosed(date)) return { ok: false, message: '마감된 시간표는 수정할 수 없습니다.' }; } catch { return { ok: false, message: '마감 상태를 확인하지 못했습니다.' }; }
   const student = await db().from('coaching_students').select('id, lesson_plan, homeroom_teacher, assistant_teacher').eq('id', studentId).neq('status', 'archived').single();
   if (student.error) return { ok: false, message: '학생 정보를 찾을 수 없습니다.' };
   if ((student.data.lesson_plan === 'one_lead' && teacher !== '이주아 T') || (student.data.lesson_plan === 'one_team' && teacher !== '김유리 T')) {
@@ -49,7 +92,7 @@ export async function saveSession(form: FormData): Promise<{ ok: boolean; messag
     }
   }
   const result = await db().from('lesson_sessions').insert({ lesson_date: date, start_time: start, end_time: end, teacher_name: teacher, student_id: studentId }).select('id').single();
-  if (result.error) return { ok: false, message: result.error.code === '23505' ? '이미 배정된 수업입니다.' : '배정을 저장하지 못했습니다. 다시 시도해 주세요.' };
+  if (result.error) return { ok: false, message: result.error.code === '23505' ? '이미 배정된 수업입니다.' : result.error.message.includes('마감된 시간표') ? '마감된 시간표는 수정할 수 없습니다.' : '배정을 저장하지 못했습니다. 다시 시도해 주세요.' };
   revalidatePath(path);
   return { ok: true, message: '배정했습니다.', id: result.data.id };
 }
@@ -58,8 +101,11 @@ export async function removeSession(form: FormData) {
   if (!(await currentAdminIdentity())) throw new Error('로그인이 필요합니다.');
   const id = String(form.get('id') ?? '');
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('회차를 확인해 주세요.');
+  const existing = await db().from('lesson_sessions').select('lesson_date').eq('id', id).single();
+  if (existing.error) throw new Error('회차를 찾지 못했습니다.');
+  if (await isClosed(existing.data.lesson_date)) throw new Error('마감된 시간표는 수정할 수 없습니다.');
   const result = await db().from('lesson_sessions').delete().eq('id', id);
-  if (result.error) throw new Error('배정을 취소하지 못했습니다.');
+  if (result.error) throw new Error(result.error.message.includes('마감된 시간표') ? '마감된 시간표는 수정할 수 없습니다.' : '배정을 취소하지 못했습니다.');
   revalidatePath(path);
 }
 
@@ -72,8 +118,11 @@ export async function moveSession(form: FormData): Promise<{ ok: boolean; messag
   const teacher = String(form.get('teacher') ?? '').trim();
   if (!/^[0-9a-f-]{36}$/i.test(id) || !/^20\d{2}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end || !['이주아 T','김유리 T'].includes(teacher)) return { ok: false, message: '학생, 날짜, 시간을 확인해 주세요.' };
   const dbClient = db();
-  const session = await dbClient.from('lesson_sessions').select('id, student_id').eq('id', id).single();
+  const session = await dbClient.from('lesson_sessions').select('id, student_id, lesson_date').eq('id', id).single();
   if (session.error) return { ok: false, message: '이동할 수업을 찾을 수 없습니다.' };
+  try {
+    if (await isClosed(session.data.lesson_date) || await isClosed(date)) return { ok: false, message: '마감된 시간표는 수정할 수 없습니다.' };
+  } catch { return { ok: false, message: '마감 상태를 확인하지 못했습니다.' }; }
   const student = await dbClient.from('coaching_students').select('lesson_plan, homeroom_teacher, assistant_teacher').eq('id', session.data.student_id).single();
   if (student.error) return { ok: false, message: '학생 정보를 찾을 수 없습니다.' };
   if ((student.data.lesson_plan === 'one_lead' && teacher !== '이주아 T') || (student.data.lesson_plan === 'one_team' && teacher !== '김유리 T')) return { ok: false, message: '이 학생의 1:1 담당 선생님과 일치하지 않습니다.' };
@@ -100,7 +149,7 @@ export async function moveSession(form: FormData): Promise<{ ok: boolean; messag
     if (partners.error || !student.data.lesson_plan?.startsWith('pair_') || partners.data.some(row => !row.lesson_plan?.startsWith('pair_'))) return { ok: false, message: '2:1 수업 빈자리에만 함께 배정할 수 있습니다.' };
   }
   const moved = await dbClient.from('lesson_sessions').update({ lesson_date: date, start_time: start, end_time: end, teacher_name: teacher }).eq('id', id);
-  if (moved.error) return { ok: false, message: moved.error.code === '23505' ? '이미 배정된 시간입니다.' : '수업 이동을 저장하지 못했습니다.' };
+  if (moved.error) return { ok: false, message: moved.error.code === '23505' ? '이미 배정된 시간입니다.' : moved.error.message.includes('마감된 시간표') ? '마감된 시간표는 수정할 수 없습니다.' : '수업 이동을 저장하지 못했습니다.' };
   revalidatePath(path);
   return { ok: true, message: '수업을 이동했습니다.' };
 }
