@@ -146,9 +146,13 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     grouped.set(key, [...(grouped.get(key) ?? []), item]);
   }
   const lessons = [...grouped.entries()].map(([key, items]) => ({
-    key, items, date: items[0].lesson_date, start: items[0].start_time.slice(0,5),
-    end: items[0].end_time.slice(0,5), teacher: items[0].teacher_name,
-  }));
+    key,
+    items: items.sort((a, b) => (names.get(a.student_id)?.name ?? '').localeCompare(names.get(b.student_id)?.name ?? '', 'ko') || a.student_id.localeCompare(b.student_id)),
+    date: items[0].lesson_date,
+    start: items[0].start_time.slice(0,5),
+    end: items[0].end_time.slice(0,5),
+    teacher: items[0].teacher_name,
+  })).sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start) || (names.get(a.items[0].student_id)?.name ?? '').localeCompare(names.get(b.items[0].student_id)?.name ?? '', 'ko') || a.teacher.localeCompare(b.teacher, 'ko'));
   const hourLabels = Array.from(new Set([
     ...Array.from({ length: 12 }, (_, index) => String(index + 10).padStart(2,'0') + ':00'),
     ...lessons.map(lesson => lesson.start),
@@ -197,8 +201,6 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       </div>}
     </div>;
   };
-  const counts = new Map<string, number>();
-  for (const item of sessions) counts.set(item.student_id, (counts.get(item.student_id) ?? 0) + 1);
   const weekEnd = new Date(startOfWeek); weekEnd.setDate(weekEnd.getDate() + 7);
   const weekSessions = displayedSessions.filter(item => item.lesson_date >= localDate(startOfWeek) && item.lesson_date < localDate(weekEnd));
   const lessonCount = (items: Session[]) => new Set(items.map(item => [item.lesson_date,item.start_time,item.end_time,item.teacher_name].join('|'))).size;
@@ -266,6 +268,20 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     link.download = '주간시간표_' + days[0] + '_' + days[6] + '.png';
     link.click();
   };
+  const periodSessions = displayedSessions.filter(item => view === 'week'
+    ? item.lesson_date >= days[0] && item.lesson_date <= days[6]
+    : item.lesson_date.startsWith(month));
+  const periodAssignedIds = new Set(periodSessions.map(item => item.student_id));
+  const visibleStudents = students.filter(student => student.name.includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id));
+  const unassignedStudents = visibleStudents.filter(student => !periodAssignedIds.has(student.id));
+  const assignedStudents = visibleStudents.filter(student => periodAssignedIds.has(student.id));
+  const studentButton = (student: Student) => <button key={student.id} type="button" draggable
+    onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }}
+    onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+    onClick={() => choose(student.id,date)} className={styles.btn}>
+    {student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {periodSessions.filter(item => item.student_id === student.id).length}타임
+  </button>;
   return <section className={styles.block}>
     <div className={styles.summary}>
       <strong>이번 주 총 수업 {lessonCount(weekSessions)}타임 · 전체 학생 {new Set(weekSessions.map(item => item.student_id)).size}명</strong>
@@ -304,7 +320,10 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     </div>}
     <h2>학생 검색·배정</h2>
     <input className={styles.input} aria-label="학생 검색" placeholder="학생 이름 검색" value={query} onChange={event => setQuery(event.target.value)}/>
-    <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}타임</button>)}</div>
+    <h3>{view === 'week' ? '이번 주' : '이번 달'} 미배정 학생 {unassignedStudents.length}명</h3>
+    <div className={styles.summary}>{unassignedStudents.map(studentButton)}</div>
+    <h3>{view === 'week' ? '이번 주' : '이번 달'} 배정 학생 {assignedStudents.length}명</h3>
+    <div className={styles.summary}>{assignedStudents.map(studentButton)}</div>
     <p>주간 시간 칸에 학생을 놓으면 해당 시간에 바로 배정됩니다. 분홍색 칸 위에 놓아 주세요. 월간 날짜 칸에서는 희망 시간에 배정합니다.</p>
     {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'} · 부담임 {current.assistant_teacher ?? '미배정'}</h3>
       {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? teacherFor(current, date) ?? '이주아 T'); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
