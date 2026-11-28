@@ -27,12 +27,14 @@ export default async function Page({ params, searchParams }: {
   const month = requested && /^20\d\d-(0[1-9]|1[0-2])$/.test(requested) ? requested : today.slice(0, 7);
   const start = month + '-01';
   const next = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 1)).toISOString().slice(0,10);
+  const scheduleStart = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)) - 1, -6)).toISOString().slice(0,10);
+  const scheduleEnd = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 8)).toISOString().slice(0,10);
   const needsPayments = section === 'receipts' || section === 'closing';
   const needsSpend = section === 'costs' || section === 'closing';
   const [payments, spend, scheduleData, studentsData] = await Promise.all([
     needsPayments ? db().from('payments').select('paid_at, amount, currency, status').gte('paid_at', start+'T00:00:00+09:00').lt('paid_at', next+'T00:00:00+09:00').order('paid_at') : null,
     needsSpend ? db().from('marketing_spend_daily').select('spend_date, platform, spend').gte('spend_date', start).lt('spend_date', next).order('spend_date') : null,
-    section === 'schedule' ? db().from('lesson_sessions').select('id, lesson_date, start_time, end_time, teacher_name, student_id').gte('lesson_date', start).lt('lesson_date', next).order('lesson_date') : null,
+    section === 'schedule' ? db().from('lesson_sessions').select('id, lesson_date, start_time, end_time, teacher_name, student_id').gte('lesson_date', scheduleStart).lt('lesson_date', scheduleEnd).order('lesson_date') : null,
     section === 'schedule' ? db().from('coaching_students').select('id, name, lesson_plan, homeroom_teacher, preferred_slots').neq('status', 'archived').order('name').limit(5000) : null,
   ]);
   if (payments?.error || spend?.error || scheduleData?.error || studentsData?.error) throw new Error('월별 자료를 조회하지 못했습니다.');

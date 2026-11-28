@@ -10,6 +10,11 @@ type Session = { id: string; lesson_date: string; start_time: string; end_time: 
 const teachers = ['이주아 T', '김유리 T'];
 const colors: Record<string, string> = { '이주아 T': '#ec4899', '김유리 T': '#a78bfa' };
 const plans: Record<string, string> = { one_lead:'1:1 대표', one_team:'1:1 소속', pair_once:'2:1 주 1회', pair_twice:'2:1 주 2회' };
+const addHour = (time: string) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  if (hours >= 23) return '';
+  return String(hours + 1).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+};
 const localDate = (date: Date) => date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
 
 export default function ScheduleBoard({ month, sessions, students }: { month: string; sessions: Session[]; students: Student[] }) {
@@ -73,9 +78,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       const slot = preferred[0];
       const teacherName = required || student.homeroom_teacher || '이주아 T';
       const startTime = slot.start;
-      const endTime = new Date('2000-01-01T' + slot.start + ':00').getTime() + 60 * 60 * 1000;
-      const suggestedEnd = new Date(endTime).toISOString().slice(11,16);
-      if (suggestedEnd > slot.end || sessions.some(item => item.lesson_date === day && item.teacher_name === teacherName && item.start_time.slice(0,5) < suggestedEnd && item.end_time.slice(0,5) > startTime)) {
+      const suggestedEnd = addHour(slot.start);
+      if (!suggestedEnd || suggestedEnd > slot.end || sessions.some(item => item.lesson_date === day && item.teacher_name === teacherName && item.start_time.slice(0,5) < suggestedEnd && item.end_time.slice(0,5) > startTime)) {
         setStart(slot.start); setEnd(slot.end);
         setNotice('희망 시간 ' + slot.start + '–' + slot.end + '입니다. 겹치는 수업이나 시간 범위를 확인한 뒤 아래에서 배정하세요.');
         return;
@@ -97,7 +101,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     if (pending) return;
     setSelected(id);
     setDate(day);
-    const endHour = new Date(new Date('2000-01-01T' + hour + ':00').getTime() + 60 * 60 * 1000).toISOString().slice(11,16);
+    const endHour = addHour(hour);
+    if (!endHour) { setError('해당 시간에는 1시간 수업을 배정할 수 없습니다.'); return; }
     const required = student.lesson_plan === 'one_lead' ? '이주아 T' : student.lesson_plan === 'one_team' ? '김유리 T' : null;
     const existingPair = sessions.find(item => item.lesson_date === day && item.start_time.slice(0,5) === hour && item.end_time.slice(0,5) === endHour && student.lesson_plan?.startsWith('pair_') && names.get(item.student_id)?.lesson_plan?.startsWith('pair_') && sessions.filter(other => other.lesson_date === day && other.teacher_name === item.teacher_name && other.start_time === item.start_time && other.end_time === item.end_time).length === 1);
     const teacherName = required || existingPair?.teacher_name || student.homeroom_teacher || '이주아 T';
@@ -161,6 +166,9 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       {view === 'week' && <><button type="button" className={styles.btn} onClick={() => setWeek(value => value - 1)}>이전 주</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value + 1)}>다음 주</button></>}
     </div>
     <p>{teachers.map(name => <span key={name} style={{ color:colors[name], marginRight:16 }}>{name}</span>)}</p>
+    {notice && <p role="status" style={{ color:'#176a46', fontWeight:700 }}>{notice}</p>}
+    {pending && <p role="status">배정 중…</p>}
+    {error && <p role="alert" style={{ color:'#b4233c', fontWeight:700 }}>{error}</p>}
     {view === 'week' ? <div style={{ overflowX:'auto' }}>
       <div style={{ display:'grid', gridTemplateColumns:'68px repeat(7,minmax(145px,1fr))', minWidth:1100, border:'1px solid #e8dfe5', borderRadius:12, overflow:'hidden', background:'#fff' }}>
         <div style={{ padding:12, background:'#fcf5f9', color:'#513446', fontWeight:700, borderRight:'1px solid #e8dfe5' }}>시간</div>
