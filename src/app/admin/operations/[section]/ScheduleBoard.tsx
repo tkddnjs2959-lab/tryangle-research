@@ -139,12 +139,22 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     ...Array.from({ length: 12 }, (_, index) => String(index + 10).padStart(2,'0') + ':00'),
     ...lessons.map(lesson => lesson.start),
   ])).sort();
+  const moveLesson = (lesson: typeof lessons[number], day: string, hour: string) => {
+    if (pending || (lesson.date === day && lesson.start === hour)) return;
+    const endHour = addHour(hour);
+    if (!endHour) { setError('해당 시간에는 1시간 수업을 배정할 수 없습니다.'); return; }
+    if (lesson.items.length !== 1) { setError('2:1로 묶인 수업은 학생 한 명씩 펼쳐서 옮겨 주세요.'); return; }
+    const item = lesson.items[0];
+    const form = new FormData(); form.set('id', item.id); form.set('date', day); form.set('start', hour); form.set('end', endHour); form.set('teacher', lesson.teacher);
+    setError(''); setNotice(''); setDropTarget(null); setDraggingId(null);
+    startTransition(async () => { try { const result = await moveSession(form); if (!result.ok) { setError(result.message); return; } setRecentAssignment(null); setRemovedIds([]); router.refresh(); setNotice(day + ' ' + hour + '로 수업을 이동했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '수업을 이동하지 못했습니다.'); } });
+  };
   const lessonCard = (lesson: typeof lessons[number], compact: boolean) => {
     const first = names.get(lesson.items[0].student_id);
     const pair = first?.lesson_plan?.startsWith('pair_');
     const people = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생');
     const label = pair ? (first?.lesson_plan === 'pair_twice' ? '2:1 주 2회' : '2:1 주 1회') : '1:1';
-    return <div key={lesson.key} style={{ borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#fff8fc', color:'#241521', border:'1px solid #efd8e6', boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
+    return <div key={lesson.key} draggable={view === 'week' && lesson.items.length === 1} onDragStart={event => { if (view !== 'week' || lesson.items.length !== 1) { event.preventDefault(); return; } setDraggingId(lesson.items[0].id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + lesson.items[0].id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} style={{ cursor: view === 'week' ? 'grab' : undefined, borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#fff8fc', color:'#241521', border:'1px solid #efd8e6', boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
       <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', color:'#241521', border:0, cursor:'pointer', padding:0, lineHeight:1.45 }}>
         <strong style={{ display:'block', color:'#3a1730', overflowWrap:'anywhere', whiteSpace:'normal' }} title={people.join(' · ')}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</strong>
         <small style={{ display:'block', color:'#80576e', fontWeight:700, marginTop:3 }}>{label} · {lesson.teacher}</small>
@@ -178,7 +188,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
         </button>)}
         {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
           <div style={{ padding:12, color:'#62495a', fontWeight:700, borderTop:'1px solid #e8dfe5', borderRight:'1px solid #e8dfe5', background:'#fffafd' }}>{hour}</div>
-          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const id = event.dataTransfer.getData('text/plain') || draggingId || ''; setDropTarget(null); setDraggingId(null); assignAt(id,day,hour); }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
+          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const payload = event.dataTransfer.getData('text/plain'); setDropTarget(null); if (payload.startsWith('session:')) { const id = payload.slice(8); const lesson = lessons.find(item => item.items.some(session => session.id === id)); if (lesson) moveLesson(lesson,day,hour); } else { setDraggingId(null); assignAt(payload || draggingId || '',day,hour); } }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
             {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
           </div>)}
         </div>)}
