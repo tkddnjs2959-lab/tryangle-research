@@ -9,6 +9,7 @@ const tabs = [
   ['schedule', '/admin/operations/schedule', '수업 시간표'],
   ['coaching', '/admin/coaching', '학생·등록'],
   ['calendar', '/admin/calendar', '상담·시작일 달력'],
+  ['accounts', '/admin/accounts', '계정 관리'],
   ['receipts', '/admin/operations/receipts', '월 수납'],
   ['costs', '/admin/operations/costs', '비용·수익성'],
   ['closing', '/admin/operations/closing', '월 마감'],
