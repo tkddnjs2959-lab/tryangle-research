@@ -3,6 +3,7 @@
 import { useActionState, useRef } from 'react';
 import { addCoachingStudent } from '../actions';
 import styles from '../admin.module.css';
+import TuitionInput from './TuitionInput';
 
 export default function AddCoachingStudentForm() {
   const ref = useRef<HTMLFormElement>(null);
@@ -29,7 +30,8 @@ export default function AddCoachingStudentForm() {
           <option value="male">남</option>
         </select>
         <select className={styles.input} name="lessonPlan" defaultValue=""><option value="">수강 상품 선택</option><option value="one_lead">1:1 대표</option><option value="one_team">1:1 소속</option><option value="pair_once">2:1 주 1회</option><option value="pair_twice">2:1 주 2회</option></select>
-        <input className={styles.input} name="monthlyTuition" type="number" min="0" step="1" placeholder="월 수강료 (원)" />
+        <TuitionInput />
+        <select className={styles.input} name="status" defaultValue="active"><option value="active">수강생</option><option value="unregistered">미등록</option><option value="leave">휴학생</option><option value="withdrawn">퇴원생</option></select>
         <select className={styles.input} name="homeroomTeacher" defaultValue=""><option value="">담임 미배정</option><option>이주아 T</option><option>김유리 T</option></select>
         <button className={styles.btn} type="submit" disabled={pending}>
           {pending ? '등록 중…' : '등록'}

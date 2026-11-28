@@ -1,0 +1,2 @@
+alter table public.coaching_students drop constraint coaching_students_status_check;
+alter table public.coaching_students add constraint coaching_students_status_check check (status in ('active','unregistered','leave','withdrawn','done','archived','prospective'));

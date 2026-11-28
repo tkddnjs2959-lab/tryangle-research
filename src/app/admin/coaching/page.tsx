@@ -65,6 +65,7 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
             <li key={s.id} className={styles.resp}>
               <div className={styles.respHead}>
                 <StudentDetails student={s} />
+                <span className={styles.linkTag}>{({ active:'수강생', unregistered:'미등록', prospective:'미등록', leave:'휴학생', done:'퇴원생', withdrawn:'퇴원생', archived:'퇴원생' } as Record<string,string>)[s.status] ?? '미등록'}</span>
                 
                 <span className={styles.meta}>
                   {[s.birthYear && `${s.birthYear}년생`, s.gender === 'female' ? '여' : '남', s.contact]

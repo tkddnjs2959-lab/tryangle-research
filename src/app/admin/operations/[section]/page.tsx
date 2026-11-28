@@ -36,7 +36,7 @@ export default async function Page({ params, searchParams }: {
     needsPayments ? db().from('payments').select('paid_at, amount, currency, status').gte('paid_at', start+'T00:00:00+09:00').lt('paid_at', next+'T00:00:00+09:00').order('paid_at') : null,
     needsSpend ? db().from('marketing_spend_daily').select('spend_date, platform, spend').gte('spend_date', start).lt('spend_date', next).order('spend_date') : null,
     section === 'schedule' ? db().from('lesson_sessions').select('id, lesson_date, start_time, end_time, teacher_name, student_id').gte('lesson_date', scheduleStart).lt('lesson_date', scheduleEnd).order('lesson_date') : null,
-    section === 'schedule' ? db().from('coaching_students').select('id, name, lesson_plan, homeroom_teacher, preferred_slots').neq('status', 'archived').order('name').limit(5000) : null,
+    section === 'schedule' ? db().from('coaching_students').select('id, name, lesson_plan, homeroom_teacher, preferred_slots').eq('status', 'active').order('name').limit(5000) : null,
     section === 'closing' ? db().from('lesson_sessions').select('id, lesson_date, student_id, tuition_amount, tuition_session_count, coaching_students(name, monthly_tuition, lesson_plan)').gte('lesson_date', start).lt('lesson_date', next).order('lesson_date').limit(10000) : null,
   ]);
   if (payments?.error || spend?.error || scheduleData?.error || studentsData?.error || revenueData?.error) throw new Error('월별 자료를 조회하지 못했습니다.');

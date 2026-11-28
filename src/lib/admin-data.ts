@@ -735,7 +735,7 @@ export async function listCoachingStudents(
   let query = client
     .from('coaching_students')
     .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition', { count: 'exact' })
-    .neq('status', 'archived');
+    ;
 
   if (filters.gender) query = query.eq('gender', filters.gender);
   const currentYear = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }).format(new Date()));
@@ -911,6 +911,7 @@ export async function createCoachingStudent(input: {
   contact: string | null;
   residence: string | null;
   monthlyTuition?: number | null;
+  status?: string;
   lessonPlan?: string | null;
   homeroomTeacher?: string | null;
 }) {
@@ -921,6 +922,7 @@ export async function createCoachingStudent(input: {
     contact: input.contact,
     residence: input.residence,
     monthly_tuition: input.monthlyTuition ?? null,
+    status: input.status ?? 'active',
     lesson_plan: input.lessonPlan ?? null,
     homeroom_teacher: input.homeroomTeacher ?? null,
   });
