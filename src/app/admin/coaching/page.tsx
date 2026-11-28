@@ -12,7 +12,7 @@ import AddCoachingStudentForm from './AddCoachingStudentForm';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '1:1 매체연기 코칭 · 어드민', robots: { index: false, follow: false } };
 
-export default async function CoachingAdminPage({ searchParams }: { searchParams: Promise<{ gender?: string; age?: string; page?: string }> }) {
+export default async function CoachingAdminPage({ searchParams }: { searchParams: Promise<{ gender?: string; age?: string; page?: string; q?: string }> }) {
   if (!(await isLoggedIn())) redirect('/admin/login');
 
   const params = await searchParams;
@@ -20,9 +20,10 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
   const age = ['under20', '20s', '30s', '40plus', 'unknown'].includes(params.age ?? '')
     ? params.age as 'under20' | '20s' | '30s' | '40plus' | 'unknown'
     : undefined;
+  const query = (params.q ?? '').trim().slice(0, 80);
   const requestedPage = Number(params.page);
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  const result = await listCoachingStudents({ gender, age, page });
+  const result = await listCoachingStudents({ gender, age, page, query });
   const active = result.students;
   const ids = active.map(student => student.id);
   const starts = ids.length ? await db().from('lesson_sessions').select('student_id, lesson_date').in('student_id', ids).order('lesson_date', { ascending: true }).limit(10000) : { data: [], error: null };
@@ -53,6 +54,7 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
       <form action="/admin/coaching" className={styles.studentFilters}>
         <label>성별 <select name="gender" defaultValue={gender ?? 'all'}><option value="all">전체</option><option value="female">여성</option><option value="male">남성</option></select></label>
         <label>나이 <select name="age" defaultValue={age ?? 'all'}><option value="all">전체</option><option value="under20">20세 미만</option><option value="20s">20대</option><option value="30s">30대</option><option value="40plus">40세 이상</option><option value="unknown">나이 미상</option></select></label>
+        <label>학생 검색 <input className={styles.input} type="search" name="q" placeholder="이름 검색" defaultValue={query} /></label>
         <input type="hidden" name="page" value="1" />
         <button className={styles.btn} type="submit">적용</button><span>{result.total}명</span>
       </form>
@@ -85,9 +87,9 @@ export default async function CoachingAdminPage({ searchParams }: { searchParams
         </ul>
       )}
       {pageCount > 1 && <nav className={styles.tabs} aria-label="학생 목록 페이지">
-        {page > 1 && <Link className={styles.tab} href={{ pathname: '/admin/coaching', query: { gender, age, page: page - 1 } }}>이전</Link>}
+        {page > 1 && <Link className={styles.tab} href={{ pathname: '/admin/coaching', query: { gender, age, q: query, page: page - 1 } }}>이전</Link>}
         <span aria-current="page" className={`${styles.tab} ${styles.tabOn}`}>{page} / {pageCount}</span>
-        {page < pageCount && <Link className={styles.tab} href={{ pathname: '/admin/coaching', query: { gender, age, page: page + 1 } }}>다음</Link>}
+        {page < pageCount && <Link className={styles.tab} href={{ pathname: '/admin/coaching', query: { gender, age, q: query, page: page + 1 } }}>다음</Link>}
       </nav>}
     </main>
   );

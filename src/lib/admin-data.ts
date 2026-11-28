@@ -688,6 +688,7 @@ export type CoachingStudentFilters = {
   gender?: Gender;
   age?: 'under20' | '20s' | '30s' | '40plus' | 'unknown';
   page?: number;
+  query?: string;
 };
 
 function inferredBirthYear(name: string, birthYear: number | null, currentYear: number): number | null {
@@ -740,6 +741,7 @@ export async function listCoachingStudents(
     ;
 
   if (filters.gender) query = query.eq('gender', filters.gender);
+  if (filters.query) query = query.ilike('name', `%${filters.query}%`);
   const currentYear = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }).format(new Date()));
   const year = currentYear;
 
@@ -747,8 +749,8 @@ export async function listCoachingStudents(
   let count = 0;
   if (!filters.age) {
     const result = await query
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
       .range(start, end);
     if (result.error) throw new Error(result.error.message);
     data = result.data ?? [];
@@ -764,12 +766,13 @@ export async function listCoachingStudents(
           : year - 40;
     const [knownBirthYears, missingBirthYears] = await Promise.all([
       query.gte('birth_year', minimumBirthYear).lte('birth_year', maximumBirthYear)
-        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .order('name', { ascending: true }).order('id', { ascending: true })
         .range(0, end),
       client.from('coaching_students')
         .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition')
         .neq('status', 'archived').is('birth_year', null)
-        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .ilike('name', `%${filters.query ?? ''}%`)
+        .order('name', { ascending: true }).order('id', { ascending: true })
         .limit(5000),
     ]);
     if (knownBirthYears.error || missingBirthYears.error) {
@@ -788,7 +791,7 @@ export async function listCoachingStudents(
     const allMatches = [
       ...((knownBirthYears.data ?? []) as CoachingStudentDbRow[]),
       ...legacyMatches,
-    ].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
+    ].sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id));
     count = (knownBirthYears.count ?? 0) + legacyMatches.length;
     data = allMatches.slice(start, start + pageSize);
   } else {
@@ -797,12 +800,13 @@ export async function listCoachingStudents(
       .neq('status', 'archived')
       .is('birth_year', null);
     if (filters.gender) batchQuery = batchQuery.eq('gender', filters.gender);
-    const result = await batchQuery.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(5000);
+    if (filters.query) batchQuery = batchQuery.ilike('name', `%${filters.query}%`);
+    const result = await batchQuery.order('name', { ascending: true }).order('id', { ascending: true }).limit(5000);
     if (result.error) throw new Error(result.error.message);
     const candidates = (result.data ?? []) as CoachingStudentDbRow[];
     const unknownRows = candidates.filter((row) => inferredBirthYear(row.name, null, currentYear) === null);
     count = unknownRows.length;
-    data = unknownRows.slice(start, start + pageSize);
+    data = unknownRows.sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id)).slice(start, start + pageSize);
   }
 
   // 목록 카드에는 배우 이름과 상세 링크만 필요하므로 배우 기본 정보만 읽는다.

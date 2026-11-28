@@ -183,7 +183,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const pair = first?.lesson_plan?.startsWith('pair_');
     const people = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생');
     const label = pair ? (first?.lesson_plan === 'pair_twice' ? '2:1 주 2회' : '2:1 주 1회') : '1:1';
-    return <div key={lesson.key} draggable={view === 'week' && lesson.items.length === 1} onDragStart={event => { if (view !== 'week' || lesson.items.length !== 1) { event.preventDefault(); return; } setDraggingId(lesson.items[0].id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + lesson.items[0].id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} style={{ cursor: view === 'week' ? 'grab' : undefined, borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background:'#fff8fc', color:'#241521', borderTop:'1px solid #efd8e6', borderRight:'1px solid #efd8e6', borderBottom:'1px solid #efd8e6', boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
+    return <div key={lesson.key} draggable={view === 'week' && lesson.items.length === 1} onDragStart={event => { if (view !== 'week' || lesson.items.length !== 1) { event.preventDefault(); return; } setDraggingId(lesson.items[0].id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + lesson.items[0].id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} style={{ cursor: view === 'week' ? 'grab' : undefined, borderLeft:'4px solid ' + (colors[lesson.teacher] ?? '#aaa'), background: lesson.teacher === '김유리 T' ? '#eff6ff' : '#fff1f7', color:'#241521', borderTop:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), borderRight:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), borderBottom:'1px solid ' + (lesson.teacher === '김유리 T' ? '#bfdbfe' : '#f9cddd'), boxShadow:'0 2px 8px rgba(58,19,43,.08)', borderRadius:9, padding:compact ? 6 : 10, marginTop:5, fontSize:compact ? 12 : 14 }}>
       <button type="button" onClick={() => setExpanded(expanded === lesson.key ? null : lesson.key)} aria-expanded={expanded === lesson.key} style={{ display:'block', width:'100%', textAlign:'left', background:'transparent', color:'#241521', border:0, cursor:'pointer', padding:0, lineHeight:1.45 }}>
         <strong style={{ display:'block', color:'#3a1730', overflowWrap:'anywhere', whiteSpace:'normal' }} title={people.join(' · ')}>{people.join(' · ')}{pair && people.length === 1 ? ' · 빈자리 1' : ''}</strong>
         <small style={{ display:'block', color:'#80576e', fontWeight:700, marginTop:3 }}>{label} · {lesson.teacher}</small>
@@ -220,7 +220,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     context.fillText('주간 수업 시간표', 32, 46);
     context.font = '20px sans-serif';
     context.fillText(days[0] + ' ~ ' + days[6], 32, 80);
-    context.fillText('수업 ' + lessonCount(weekSessions) + '회 · 학생 ' + new Set(weekSessions.map(item => item.student_id)).size + '명', 32, 112);
+    context.fillText('수업 ' + lessonCount(weekSessions) + '타임 · 전체 학생 ' + new Set(weekSessions.map(item => item.student_id)).size + '명', 32, 112);
     teachers.forEach((name, index) => {
       context.fillStyle = colors[name];
       context.fillRect(34 + index * 290, 130, 16, 16);
@@ -268,8 +268,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   };
   return <section className={styles.block}>
     <div className={styles.summary}>
-      <strong>이번 주 총 수업 {lessonCount(weekSessions)}회 · 학생 {new Set(weekSessions.map(item => item.student_id)).size}명</strong>
-      {teachers.map(name => { const items = weekSessions.filter(item => item.teacher_name === name); return <span key={name} style={{borderLeft:'4px solid ' + colors[name], padding:'6px 10px', background:'#fff'}}>{name} · 수업 {lessonCount(items)}회 · 학생 {new Set(items.map(item => item.student_id)).size}명</span>; })}
+      <strong>이번 주 총 수업 {lessonCount(weekSessions)}타임 · 전체 학생 {new Set(weekSessions.map(item => item.student_id)).size}명</strong>
+      {teachers.map(name => { const items = weekSessions.filter(item => item.teacher_name === name); return <span key={name} style={{borderLeft:'4px solid ' + colors[name], padding:'6px 10px', background:'#fff'}}>{name} · 수업 {lessonCount(items)}타임</span>; })}
     </div>
     <div className={styles.summary}>
       <button type="button" className={styles.btn} onClick={() => shiftMonth(-1)}>← 이전 달</button><strong>{month}</strong><button type="button" className={styles.btn} onClick={() => shiftMonth(1)}>다음 달 →</button>
@@ -304,7 +304,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     </div>}
     <h2>학생 검색·배정</h2>
     <input className={styles.input} aria-label="학생 검색" placeholder="학생 이름 검색" value={query} onChange={event => setQuery(event.target.value)}/>
-    <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}회</button>)}</div>
+    <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}타임</button>)}</div>
     <p>주간 시간 칸에 학생을 놓으면 해당 시간에 바로 배정됩니다. 분홍색 칸 위에 놓아 주세요. 월간 날짜 칸에서는 희망 시간에 배정합니다.</p>
     {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'} · 부담임 {current.assistant_teacher ?? '미배정'}</h3>
       {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? teacherFor(current, date) ?? '이주아 T'); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}

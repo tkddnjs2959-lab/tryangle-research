@@ -48,7 +48,8 @@ export default async function Page({ params, searchParams }: {
     return { ...row, student, amount, count, estimatedFromCurrent: row.tuition_amount === null && amount !== null };
   });
   const priced = effectiveRows.filter(row => row.amount !== null && row.count);
-  const scheduledRevenue = priced.reduce((sum, row) => sum + Number(row.amount) / Number(row.count), 0);
+  const confirmedRevenue = priced.filter(row => row.lesson_date < today).reduce((sum, row) => sum + Number(row.amount) / Number(row.count), 0);
+  const estimatedRevenue = priced.filter(row => row.lesson_date >= today).reduce((sum, row) => sum + Number(row.amount) / Number(row.count), 0);
   return <main className={styles.page}>
     <header className={styles.topbar}><h1 className={styles.h1}>{sections[section]}</h1></header>
     <AdminTabs active={section}/>
@@ -56,7 +57,7 @@ export default async function Page({ params, searchParams }: {
       <button className={styles.btn}>조회</button></form>
     {(section === 'receipts' || section === 'closing') && <MonthlyManagement month={month} section={section} />}
     {section === 'schedule' && <ScheduleBoard key={month} month={month} sessions={scheduleData?.data ?? []} students={studentsData?.data ?? []} /> }
-    {section === 'closing' && <section className={styles.block}><h2 className={styles.blockTitle}>수업 배정 기준 월 예정 매출</h2><p>총 {scheduled.length}회 · 금액 설정 {priced.length}회 · {Math.round(scheduledRevenue).toLocaleString('ko-KR')}원</p><p>월 수강료를 주 1회 상품은 4회, 주 2회 상품은 8회로 나누어 배정된 회차별로 계산합니다. 예약과 결제·수업 완료 여부는 별도입니다.</p>{priced.length < scheduled.length && <p>수강료 정보가 없는 {scheduled.length - priced.length}회는 계산에서 제외됩니다.</p>}<table className={styles.table}><thead><tr><th>수업일</th><th>학생</th><th>회당 예정 매출</th></tr></thead><tbody>{effectiveRows.map(row => <tr key={row.id}><td>{row.lesson_date}</td><td>{row.student?.name ?? '학생'}</td><td>{row.amount !== null && row.count ? Math.round(row.amount / row.count).toLocaleString('ko-KR') + '원' + (row.estimatedFromCurrent ? ' (현재 수강료 기준)' : '') : '금액 미설정'}</td></tr>)}</tbody></table></section>}
+    {section === 'closing' && <section className={styles.block}><h2 className={styles.blockTitle}>수업 배정 기준 월 매출</h2><p>총 {scheduled.length}타임 · 금액 설정 {priced.length}타임 · 확정 {Math.round(confirmedRevenue).toLocaleString('ko-KR')}원 · 예상 {Math.round(estimatedRevenue).toLocaleString('ko-KR')}원 · 합계 {Math.round(confirmedRevenue + estimatedRevenue).toLocaleString('ko-KR')}원</p><p>수업일이 지난 배정은 확정, 오늘과 이후 배정은 예상으로 계산합니다. 월 수강료를 주 1회 상품은 월 4타임, 주 2회 상품은 월 8타임으로 나눕니다.</p>{priced.length < scheduled.length && <p>수강료 정보가 없는 {scheduled.length - priced.length}타임은 계산에서 제외됩니다.</p>}<table className={styles.table}><thead><tr><th>수업일</th><th>학생</th><th>구분</th><th>타임당 매출</th></tr></thead><tbody>{effectiveRows.map(row => <tr key={row.id}><td>{row.lesson_date}</td><td>{row.student?.name ?? '학생'}</td><td>{row.lesson_date < today ? '확정' : '예상'}</td><td>{row.amount !== null && row.count ? Math.round(row.amount / row.count).toLocaleString('ko-KR') + '원' + (row.estimatedFromCurrent ? ' (현재 수강료 기준)' : '') : '금액 미설정'}</td></tr>)}</tbody></table></section>}
     {needsPayments && <section><h2>결제 기록</h2>{payments?.data?.length ? <table><thead><tr><th>결제일</th><th>금액</th><th>상태</th></tr></thead><tbody>
       {payments.data.map((p,i) => <tr key={i}><td>{new Date(p.paid_at).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul'})}</td><td>{Number(p.amount).toLocaleString('ko-KR')} {p.currency}</td><td>{p.status}</td></tr>)}</tbody></table> : <p>해당 월의 결제 기록이 없습니다.</p>}
       {section === 'receipts' && <p>미수잔액은 청구 원장 연결 후 산출됩니다.</p>}</section>}
