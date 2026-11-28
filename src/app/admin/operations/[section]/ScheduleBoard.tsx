@@ -5,7 +5,7 @@ import { saveSession, removeSession, moveSession } from './actions';
 import styles from '../../admin.module.css';
 
 type Slot = { day: number; start: string; end: string };
-type Student = { id: string; name: string; lesson_plan: string | null; homeroom_teacher: string | null; preferred_slots: Slot[] | null };
+type Student = { id: string; name: string; lesson_plan: string | null; homeroom_teacher: string | null; assistant_teacher: string | null; preferred_slots: Slot[] | null };
 type Session = { id: string; lesson_date: string; start_time: string; end_time: string; teacher_name: string; student_id: string };
 const teachers = ['이주아 T', '김유리 T'];
 const colors: Record<string, string> = { '이주아 T': '#ec4899', '김유리 T': '#2563eb' };
@@ -53,13 +53,27 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     result.setDate(result.getDate() + index);
     return localDate(result);
   });
+  const teacherFor = (student: Student, day: string) => {
+    if (student.lesson_plan === 'one_lead') return '이주아 T';
+    if (student.lesson_plan === 'one_team') return '김유리 T';
+    if (student.lesson_plan === 'pair_twice') {
+      const monday = new Date(day + 'T12:00:00');
+      monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+      const from = localDate(monday);
+      monday.setDate(monday.getDate() + 7);
+      const to = localDate(monday);
+      const assigned = displayedSessions.filter(item => item.student_id === student.id && item.lesson_date >= from && item.lesson_date < to);
+      return assigned.length === 0 ? student.homeroom_teacher : student.assistant_teacher;
+    }
+    return student.homeroom_teacher || '이주아 T';
+  };
   const choose = (id: string, day: string) => {
     const student = names.get(id);
     if (!student) return;
     setSelected(id);
     setDate(day);
     setWeek(0);
-    setTeacher(student.lesson_plan === 'one_team' ? '김유리 T' : student.homeroom_teacher || '이주아 T');
+    setTeacher(teacherFor(student, day) || '이주아 T');
   };
   const suggestions = current ? (current.preferred_slots ?? []).filter(slot => slot.day === new Date(date + 'T12:00:00').getDay()).map(slot => {
     const required = current.lesson_plan === 'one_lead' ? '이주아 T' : current.lesson_plan === 'one_team' ? '김유리 T' : null;
@@ -77,7 +91,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     const match = candidates[0];
     if (!match) {
       const slot = preferred[0];
-      const teacherName = required || student.homeroom_teacher || '이주아 T';
+      const teacherName = required || teacherFor(student, day) || '이주아 T';
       const startTime = slot.start;
       const suggestedEnd = addHour(slot.start);
       if (!suggestedEnd || suggestedEnd > slot.end || sessions.some(item => item.lesson_date === day && item.teacher_name === teacherName && item.start_time.slice(0,5) < suggestedEnd && item.end_time.slice(0,5) > startTime)) {
@@ -106,7 +120,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     if (!endHour) { setError('해당 시간에는 1시간 수업을 배정할 수 없습니다.'); return; }
     const required = student.lesson_plan === 'one_lead' ? '이주아 T' : student.lesson_plan === 'one_team' ? '김유리 T' : null;
     const existingPair = sessions.find(item => item.lesson_date === day && item.start_time.slice(0,5) === hour && item.end_time.slice(0,5) === endHour && student.lesson_plan?.startsWith('pair_') && names.get(item.student_id)?.lesson_plan?.startsWith('pair_') && sessions.filter(other => other.lesson_date === day && other.teacher_name === item.teacher_name && other.start_time === item.start_time && other.end_time === item.end_time).length === 1);
-    const teacherName = required || existingPair?.teacher_name || student.homeroom_teacher || '이주아 T';
+    const teacherName = required || teacherFor(student, day) || existingPair?.teacher_name || '이주아 T';
     const form = new FormData();
     form.set('studentId', id); form.set('date', day); form.set('start', hour); form.set('end', endHour); form.set('teacher', teacherName);
     setStart(hour); setEnd(endHour); setTeacher(teacherName); setError(''); setNotice('');
@@ -143,11 +157,26 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     if (pending || (lesson.date === day && lesson.start === hour)) return;
     const endHour = addHour(hour);
     if (!endHour) { setError('해당 시간에는 1시간 수업을 배정할 수 없습니다.'); return; }
-    if (lesson.items.length !== 1) { setError('2:1로 묶인 수업은 학생 한 명씩 펼쳐서 옮겨 주세요.'); return; }
     const item = lesson.items[0];
     const form = new FormData(); form.set('id', item.id); form.set('date', day); form.set('start', hour); form.set('end', endHour); form.set('teacher', lesson.teacher);
     setError(''); setNotice(''); setDropTarget(null); setDraggingId(null);
     startTransition(async () => { try { const result = await moveSession(form); if (!result.ok) { setError(result.message); return; } setRecentAssignment(null); setRemovedIds([]); router.refresh(); setNotice(day + ' ' + hour + '로 수업을 이동했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '수업을 이동하지 못했습니다.'); } });
+  };
+  const changeTeacher = (item: Session, teacherName: string) => {
+    const form = new FormData();
+    form.set('id', item.id);
+    form.set('date', item.lesson_date);
+    form.set('start', item.start_time.slice(0, 5));
+    form.set('end', item.end_time.slice(0, 5));
+    form.set('teacher', teacherName);
+    startTransition(async () => {
+      try {
+        const result = await moveSession(form);
+        if (!result.ok) { setError(result.message); return; }
+        router.refresh();
+        setNotice('담당 선생님을 변경했습니다.');
+      } catch { setError('담당 선생님을 변경하지 못했습니다.'); }
+    });
   };
   const lessonCard = (lesson: typeof lessons[number], compact: boolean) => {
     const first = names.get(lesson.items[0].student_id);
@@ -160,8 +189,9 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
         <small style={{ display:'block', color:'#80576e', fontWeight:700, marginTop:3 }}>{label} · {lesson.teacher}</small>
       </button>
       {expanded === lesson.key && <div style={{ paddingTop:8, color:'#372332', borderTop:'1px solid #efd8e6', marginTop:8 }}>
-        {lesson.items.map(item => <div key={item.id}>
+        {lesson.items.map(item => <div key={item.id} draggable onDragStart={event => { event.stopPropagation(); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'session:' + item.id); }}>
           {names.get(item.student_id)?.name ?? '학생'} · {plans[names.get(item.student_id)?.lesson_plan ?? ''] ?? '상품 미정'}
+          <label> 담당 <select aria-label="회차 담당 선생님" defaultValue={item.teacher_name} disabled={pending} onChange={event => changeTeacher(item, event.target.value)}>{teachers.map(name => <option key={name} value={name}>{name === names.get(item.student_id)?.homeroom_teacher ? '담임 · ' : name === names.get(item.student_id)?.assistant_teacher ? '부담임 · ' : ''}{name}</option>)}</select></label>
           <form action={async form => { try { await removeSession(form); setRecentAssignment(previous => previous?.id === item.id ? null : previous); setRemovedIds(previous => [...previous, item.id]); router.refresh(); setNotice('배정을 취소했습니다.'); } catch { setError('배정 취소에 실패했습니다. 다시 시도해 주세요.'); } }}><input type="hidden" name="id" value={item.id}/><button type="submit">배정 취소</button></form>
         </div>)}
       </div>}
@@ -172,6 +202,70 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
   const weekEnd = new Date(startOfWeek); weekEnd.setDate(weekEnd.getDate() + 7);
   const weekSessions = displayedSessions.filter(item => item.lesson_date >= localDate(startOfWeek) && item.lesson_date < localDate(weekEnd));
   const lessonCount = (items: Session[]) => new Set(items.map(item => [item.lesson_date,item.start_time,item.end_time,item.teacher_name].join('|'))).size;
+  const downloadWeek = () => {
+    const canvas = document.createElement('canvas');
+    const width = 1680;
+    const left = 96;
+    const column = (width - left) / 7;
+    const rowHeight = 112;
+    const top = 180;
+    canvas.width = width;
+    canvas.height = top + hourLabels.length * rowHeight + 48;
+    const context = canvas.getContext('2d');
+    if (!context) { setError('이미지를 만들지 못했습니다.'); return; }
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#2d1727';
+    context.font = 'bold 30px sans-serif';
+    context.fillText('주간 수업 시간표', 32, 46);
+    context.font = '20px sans-serif';
+    context.fillText(days[0] + ' ~ ' + days[6], 32, 80);
+    context.fillText('수업 ' + lessonCount(weekSessions) + '회 · 학생 ' + new Set(weekSessions.map(item => item.student_id)).size + '명', 32, 112);
+    teachers.forEach((name, index) => {
+      context.fillStyle = colors[name];
+      context.fillRect(34 + index * 290, 130, 16, 16);
+      context.fillStyle = '#2d1727';
+      context.fillText(name, 60 + index * 290, 145);
+    });
+    context.strokeStyle = '#ddd2d9';
+    context.lineWidth = 1;
+    days.forEach((day, index) => {
+      const x = left + index * column;
+      context.fillStyle = '#fdf0f7';
+      context.fillRect(x, top - 38, column, 38);
+      context.fillStyle = '#342130';
+      context.font = 'bold 17px sans-serif';
+      context.fillText(day.slice(5) + ' (' + '일월화수목금토'[new Date(day + 'T12:00:00').getDay()] + ')', x + 10, top - 12);
+      context.strokeRect(x, top - 38, column, 38);
+      hourLabels.forEach((hour, row) => {
+        const y = top + row * rowHeight;
+        context.strokeRect(x, y, column, rowHeight);
+        const items = lessons.filter(lesson => lesson.date === day && lesson.start === hour);
+        items.forEach((lesson, itemIndex) => {
+          const cardY = y + 7 + itemIndex * 48;
+          context.fillStyle = colors[lesson.teacher] ?? '#777';
+          context.fillRect(x + 7, cardY, 5, 42);
+          context.fillStyle = '#32202d';
+          context.font = 'bold 16px sans-serif';
+          const namesText = lesson.items.map(item => names.get(item.student_id)?.name ?? '학생').join(' · ');
+          context.fillText(namesText.slice(0, 14), x + 18, cardY + 18);
+          context.font = '14px sans-serif';
+          context.fillText((plans[names.get(lesson.items[0].student_id)?.lesson_plan ?? ''] ?? '1:1') + ' · ' + lesson.teacher, x + 18, cardY + 37);
+        });
+      });
+    });
+    hourLabels.forEach((hour, row) => {
+      const y = top + row * rowHeight;
+      context.fillStyle = '#422a3a';
+      context.font = 'bold 18px sans-serif';
+      context.fillText(hour, 13, y + 30);
+      context.strokeRect(0, y, left, rowHeight);
+    });
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = '주간시간표_' + days[0] + '_' + days[6] + '.png';
+    link.click();
+  };
   return <section className={styles.block}>
     <div className={styles.summary}>
       <strong>이번 주 총 수업 {lessonCount(weekSessions)}회 · 학생 {new Set(weekSessions.map(item => item.student_id)).size}명</strong>
@@ -181,7 +275,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
       <button type="button" className={styles.btn} onClick={() => shiftMonth(-1)}>← 이전 달</button><strong>{month}</strong><button type="button" className={styles.btn} onClick={() => shiftMonth(1)}>다음 달 →</button>
       <button type="button" className={styles.btn} onClick={() => setView('week')}>주간</button>
       <button type="button" className={styles.btn} onClick={() => setView('month')}>월간</button>
-      {view === 'week' && <><button type="button" className={styles.btn} onClick={() => setWeek(value => value - 1)}>이전 주</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value + 1)}>다음 주</button></>}
+      {view === 'week' && <><button type="button" className={styles.btn} onClick={downloadWeek}>주간 시간표 다운로드</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value - 1)}>이전 주</button><button type="button" className={styles.btn} onClick={() => setWeek(value => value + 1)}>다음 주</button></>}
     </div>
     <p>{teachers.map(name => <span key={name} style={{ color:colors[name], marginRight:16 }}>{name}</span>)}</p>
     {notice && <p role="status" style={{ color:'#176a46', fontWeight:700 }}>{notice}</p>}
@@ -195,7 +289,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
         </button>)}
         {hourLabels.map(hour => <div key={hour} style={{ display:'contents' }}>
           <div style={{ padding:12, color:'#62495a', fontWeight:700, borderTop:'1px solid #e8dfe5', borderRight:'1px solid #e8dfe5', background:'#fffafd' }}>{hour}</div>
-          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const payload = event.dataTransfer.getData('text/plain'); setDropTarget(null); if (payload.startsWith('session:')) { const id = payload.slice(8); const lesson = lessons.find(item => item.items.some(session => session.id === id)); if (lesson) moveLesson(lesson,day,hour); } else { setDraggingId(null); assignAt(payload || draggingId || '',day,hour); } }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
+          {days.map(day => <div key={day} onDragEnter={() => setDropTarget(day + hour)} onDragLeave={() => setDropTarget(null)} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }} onDrop={event => { event.preventDefault(); event.stopPropagation(); const payload = event.dataTransfer.getData('text/plain'); setDropTarget(null); if (payload.startsWith('session:')) { const id = payload.slice(8); const lesson = lessons.find(item => item.items.some(session => session.id === id)); if (lesson) moveLesson({ ...lesson, items: lesson.items.filter(session => session.id === id) },day,hour); } else { setDraggingId(null); assignAt(payload || draggingId || '',day,hour); } }} style={{ minHeight:100, minWidth:0, borderTop:'1px solid #e8dfe5', borderLeft:'1px solid #e8dfe5', padding:7, background:dropTarget === day + hour ? '#f9d3e8' : date === day ? '#fff4fa' : '#fff' }}>
             {lessons.filter(lesson => lesson.date === day && lesson.start === hour).map(lesson => lessonCard(lesson,false))}
           </div>)}
         </div>)}
@@ -212,8 +306,8 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     <input className={styles.input} aria-label="학생 검색" placeholder="학생 이름 검색" value={query} onChange={event => setQuery(event.target.value)}/>
     <div className={styles.summary}>{students.filter(student => student.name.includes(query)).map(student => <button key={student.id} type="button" draggable onDragStart={event => { setDraggingId(student.id); event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain',student.id); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onClick={() => choose(student.id,date)} className={styles.btn}>{student.name} · {plans[student.lesson_plan ?? ''] ?? '상품 미정'} · {counts.get(student.id) ?? 0}회</button>)}</div>
     <p>주간 시간 칸에 학생을 놓으면 해당 시간에 바로 배정됩니다. 분홍색 칸 위에 놓아 주세요. 월간 날짜 칸에서는 희망 시간에 배정합니다.</p>
-    {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'}</h3>
-      {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? (current.lesson_plan === 'one_team' ? '김유리 T' : current.homeroom_teacher || '이주아 T')); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
+    {current && <div><h3>{current.name} · {plans[current.lesson_plan ?? ''] ?? '상품 미정'} · 담임 {current.homeroom_teacher ?? '미배정'} · 부담임 {current.assistant_teacher ?? '미배정'}</h3>
+      {suggestions.length ? suggestions.map(({slot,match},index) => <button type="button" key={index} className={styles.btn} onClick={() => { setStart(match?.start_time.slice(0,5) ?? slot.start); setEnd(match?.end_time.slice(0,5) ?? slot.end); setTeacher(match?.teacher_name ?? teacherFor(current, date) ?? '이주아 T'); }}>{match ? '빈자리 추천' : '희망 시간'} · {slot.start}–{slot.end} {match ? '· ' + match.teacher_name : ''}</button>) : <p>선택한 날짜에 등록된 희망 시간이 없습니다. 직접 시간을 지정할 수 있습니다.</p>}
     </div>}
     <details open={view === 'month'}><summary>직접 배정</summary><form action={async form => { try { const result = await saveSession(form); if (!result.ok) { setError(result.message); return; } router.refresh(); setError(''); setNotice('시간표에 배정했습니다.'); } catch (cause) { setError(cause instanceof Error ? cause.message : '배정하지 못했습니다.'); } }} className={styles.searchForm}>
       <input type="hidden" name="studentId" value={selected}/>

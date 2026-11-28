@@ -40,6 +40,7 @@ export default function StudentDetails({ student }: { student: CoachingStudentRo
             <label style={fieldStyle}>수강 상품<select className={styles.input} name="lessonPlan" defaultValue={student.lessonPlan ?? ''}><option value="">미정</option>{Object.entries(plans).map(([key,value]) => <option key={key} value={key}>{value}</option>)}</select></label>
             <label style={fieldStyle}>월 수강료 (원)<TuitionInput initial={student.monthlyTuition?.toString() ?? ''}/></label>
             <label style={fieldStyle}>담임 선생님<select className={styles.input} name="homeroomTeacher" defaultValue={student.homeroomTeacher ?? ''}><option value="">미배정</option><option>이주아 T</option><option>김유리 T</option></select></label>
+            <label style={fieldStyle}>부담임 선생님<select className={styles.input} name="assistantTeacher" defaultValue={student.assistantTeacher ?? ''}><option value="">미배정</option><option>이주아 T</option><option>김유리 T</option></select></label>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(290px,1fr))', gap:14 }}>
             <div style={{ border:'1px solid #f0e3eb', borderRadius:12, padding:12, background:'#fffafd' }}>

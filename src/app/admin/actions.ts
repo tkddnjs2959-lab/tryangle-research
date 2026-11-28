@@ -319,14 +319,17 @@ export async function addCoachingStudent(_prev: string | null, form: FormData): 
   if (residence.length > 120) return '사는 곳은 120자 이내로 입력해주세요.';
   const lessonPlan = String(form.get('lessonPlan') ?? '');
   const homeroomTeacher = String(form.get('homeroomTeacher') ?? '');
+  const assistantTeacher = String(form.get('assistantTeacher') ?? '');
   if (lessonPlan && !['one_lead','one_team','pair_once','pair_twice'].includes(lessonPlan)) return '수강 상품을 확인해 주세요.';
   if (homeroomTeacher && !['이주아 T','김유리 T'].includes(homeroomTeacher)) return '담임 선생님을 확인해 주세요.';
+  if (assistantTeacher && !['이주아 T','김유리 T'].includes(assistantTeacher)) return '부담임 선생님을 확인해 주세요.';
+  if (lessonPlan === 'pair_twice' && (!homeroomTeacher || !assistantTeacher || homeroomTeacher === assistantTeacher)) return '주 2회 수업은 서로 다른 담임과 부담임을 선택해 주세요.';
   const tuitionRaw = String(form.get('monthlyTuition') ?? '').trim();
   const monthlyTuition = tuitionRaw ? Number(tuitionRaw.replaceAll(',', '')) : null;
   if (monthlyTuition !== null && (!Number.isSafeInteger(monthlyTuition) || monthlyTuition < 0 || monthlyTuition > 100000000)) return '수강 금액을 확인해 주세요.';
   const status = String(form.get('status') ?? 'active');
-  if (!['active','unregistered','leave','withdrawn'].includes(status)) return '학생 상태를 확인해 주세요.';
-  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher, monthlyTuition, status });
+  if (!['active','waitlist','unregistered','leave','withdrawn'].includes(status)) return '학생 상태를 확인해 주세요.';
+  await createCoachingStudent({ name, birthYear, gender, contact, residence: residence || null, lessonPlan, homeroomTeacher, assistantTeacher, monthlyTuition, status });
   revalidatePath('/admin/coaching');
   return null;
 }

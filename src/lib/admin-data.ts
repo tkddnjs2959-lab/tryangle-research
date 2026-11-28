@@ -673,6 +673,7 @@ export type CoachingStudentRow = {
   monthlyTuition: number | null;
   lessonPlan: string | null;
   homeroomTeacher: string | null;
+  assistantTeacher: string | null;
   preferredSlots: { day: number; start: string; end: string }[];
   actor: {
     id: string;
@@ -719,6 +720,7 @@ type CoachingStudentDbRow = {
   monthly_tuition: number | null;
   lesson_plan: string | null;
   homeroom_teacher: string | null;
+  assistant_teacher: string | null;
   preferred_slots: { day: number; start: string; end: string }[] | null;
 };
 
@@ -734,7 +736,7 @@ export async function listCoachingStudents(
   const client = db();
   let query = client
     .from('coaching_students')
-    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition', { count: 'exact' })
+    .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition', { count: 'exact' })
     ;
 
   if (filters.gender) query = query.eq('gender', filters.gender);
@@ -765,7 +767,7 @@ export async function listCoachingStudents(
         .order('created_at', { ascending: false }).order('id', { ascending: false })
         .range(0, end),
       client.from('coaching_students')
-        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition')
+        .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition')
         .neq('status', 'archived').is('birth_year', null)
         .order('created_at', { ascending: false }).order('id', { ascending: false })
         .limit(5000),
@@ -791,7 +793,7 @@ export async function listCoachingStudents(
     data = allMatches.slice(start, start + pageSize);
   } else {
     let batchQuery = client.from('coaching_students')
-      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, preferred_slots, monthly_tuition')
+      .select('id, name, birth_year, gender, contact, residence, school, note, status, created_at, actor_id, lesson_plan, homeroom_teacher, assistant_teacher, preferred_slots, monthly_tuition')
       .neq('status', 'archived')
       .is('birth_year', null);
     if (filters.gender) batchQuery = batchQuery.eq('gender', filters.gender);
@@ -828,6 +830,7 @@ export async function listCoachingStudents(
       monthlyTuition: r.monthly_tuition,
       lessonPlan: r.lesson_plan,
       homeroomTeacher: r.homeroom_teacher,
+      assistantTeacher: r.assistant_teacher,
       preferredSlots: r.preferred_slots ?? [],
       createdAt: r.created_at,
       actor: actor ? {
@@ -914,6 +917,7 @@ export async function createCoachingStudent(input: {
   status?: string;
   lessonPlan?: string | null;
   homeroomTeacher?: string | null;
+  assistantTeacher?: string | null;
 }) {
   const { error } = await db().from('coaching_students').insert({
     name: input.name,
@@ -925,6 +929,7 @@ export async function createCoachingStudent(input: {
     status: input.status ?? 'active',
     lesson_plan: input.lessonPlan ?? null,
     homeroom_teacher: input.homeroomTeacher ?? null,
+    assistant_teacher: input.assistantTeacher ?? null,
   });
   if (error) throw new Error(error.message);
 }
