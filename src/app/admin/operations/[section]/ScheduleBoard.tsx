@@ -136,7 +136,7 @@ export default function ScheduleBoard({ month, sessions, students }: { month: st
     end: items[0].end_time.slice(0,5), teacher: items[0].teacher_name,
   }));
   const hourLabels = Array.from(new Set([
-    ...Array.from({ length: 9 }, (_, index) => String(index + 13).padStart(2,'0') + ':00'),
+    ...Array.from({ length: 12 }, (_, index) => String(index + 10).padStart(2,'0') + ':00'),
     ...lessons.map(lesson => lesson.start),
   ])).sort();
   const lessonCard = (lesson: typeof lessons[number], compact: boolean) => {
